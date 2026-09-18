@@ -1,0 +1,32 @@
+{
+  "format": "dimer_hf_snapshot",
+  "formatVersion": 1,
+  "modelKey": "scgpt",
+  "modelId": "tdc/scGPT",
+  "revision": "acf749f35bf5c0b00633838f02588272ed0d9911",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3307,
+      "sha256": "f262f85cd1816c5263885e1198e05b99613a76872f8c48d5d840d08148034cab"
+    },
+    {
+      "path": "config.json",
+      "bytes": 467,
+      "sha256": "c8bf8e037352a5cc697bbf3c35cad5a15819e889de34a3810bccd58cdfb9491a"
+    },
+    {
+      "path": "model.safetensors",
+      "bytes": 203233980,
+      "sha256": "cabd40e6e22514865825975940f2c61ac1395f3317bba9f773858cd72914064c"
+    },
+    {
+      "path": "vocab.json",
+      "bytes": 1317639,
+      "sha256": "ee2b2c90158eedb97c2318e49abaaed0a02c6fdf7e3f7ca6a821906413c4d2a4",
+      "source": "https://dataverse.harvard.edu/api/access/datafile/10809431",
+      "note": "TDC `scgpt_vocab` (gene symbol -> token id, 60,697 entries); not in the Hub repository, fetched from Harvard Dataverse by persistent file id and digest-verified"
+    }
+  ],
+  "totalBytes": 204555393
+}
