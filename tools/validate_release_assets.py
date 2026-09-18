@@ -27,8 +27,14 @@ EXPECTED_PROFILE = "E2E"
 EXPECTED_MODEL_ID = "tdc/scGPT"
 PIPELINE_CLASS = "ScGPTPipeline"
 MODEL_LOAD_EXPR = f"{PIPELINE_CLASS}.from_pretrained(weights_dir=WEIGHTS_DIR)"
-# The upstream scGPT commit the re-implementation follows, cited in the docs beside the pinned Hub revision.
-KNOWN_SHAS: frozenset[str] = frozenset({"cebd6fae655b9c585a4807daa3ac31bb764f06b4"})
+# The upstream scGPT commit the re-implementation follows and the repository revision carrying the
+# immutable vocabulary mirror, both cited in the docs beside the pinned Hub revision.
+KNOWN_SHAS: frozenset[str] = frozenset(
+    {
+        "cebd6fae655b9c585a4807daa3ac31bb764f06b4",
+        "677560540f84664db00af8e03a924c65f0ca4e7a",
+    }
+)
 BYOD_GATES = ("USE_BYOD",)
 EXPECTED_OUTPUTS = (
     "outputs/scgpt_single_cell_sample_dataset.csv",
