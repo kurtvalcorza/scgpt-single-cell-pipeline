@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -28,8 +29,10 @@ from scgpt_single_cell_pipeline import (
     NHEAD,
     NLAYERS,
     SPECIAL_TOKENS,
+    VOCAB_MIRROR_URL,
     VOCAB_NAME,
     VOCAB_SIZE,
+    VOCAB_SOURCE_URL,
     WEIGHTS_NAME,
     GeneVocabulary,
     ScGPTPipeline,
@@ -39,6 +42,7 @@ from scgpt_single_cell_pipeline import (
     validate_inputs,
     verify_snapshot,
 )
+from scgpt_single_cell_pipeline.pipeline import _hub_download
 
 REPO = Path(__file__).resolve().parents[1]
 MANIFEST = REPO / "weights" / MODEL_KEY / MANIFEST_NAME
@@ -161,6 +165,36 @@ def test_stage_missing_files_fetches_only_absent_entries(tmp_path):
     assert fetched == [WEIGHTS_NAME, VOCAB_NAME]
     assert stage_missing_files(root, allow_download=True, downloader=downloader) == []
     assert verify_snapshot(root)["revision"] == MODEL_REVISION
+
+
+def test_vocabulary_download_uses_immutable_mirror_when_dataverse_is_unavailable(
+    tmp_path, monkeypatch
+):
+    content = b'{"digest": "verified after staging"}'
+    requested = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            return content
+
+    def urlopen(request, timeout):
+        assert timeout == 120
+        requested.append(request.full_url)
+        if request.full_url == VOCAB_SOURCE_URL:
+            raise urllib.error.HTTPError(request.full_url, 504, "Gateway Time-out", {}, None)
+        return Response()
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    with pytest.warns(RuntimeWarning, match="immutable digest-verified repository mirror"):
+        _hub_download(VOCAB_NAME, tmp_path)
+    assert requested == [VOCAB_SOURCE_URL, VOCAB_MIRROR_URL]
+    assert (tmp_path / VOCAB_NAME).read_bytes() == content
 
 
 def test_stage_refuses_manifest_for_another_model(tmp_path):

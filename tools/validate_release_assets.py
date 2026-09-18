@@ -183,7 +183,7 @@ COMMON_MARKDOWN_MARKERS = (
     "**Learning objectives:**",
     "## Prerequisites",
     "Do not upload confidential or restricted",
-    "- **External access:** the Hugging Face Hub only",
+    "- **External access:** the Hugging Face Hub",
     "## 1. Install the pinned runtime",
     "## 2. Pipeline code (carried verbatim from",
     "## 3. Pin, stage and verify the model",

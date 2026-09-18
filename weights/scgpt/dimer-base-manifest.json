@@ -25,7 +25,7 @@
       "bytes": 1317639,
       "sha256": "ee2b2c90158eedb97c2318e49abaaed0a02c6fdf7e3f7ca6a821906413c4d2a4",
       "source": "https://dataverse.harvard.edu/api/access/datafile/10809431",
-      "note": "TDC `scgpt_vocab` (gene symbol -> token id, 60,697 entries); not in the Hub repository, fetched from Harvard Dataverse by persistent file id and digest-verified"
+      "note": "TDC `scgpt_vocab` (gene symbol -> token id, 60,697 entries); not in the Hub repository, fetched from Harvard Dataverse by persistent file id with an immutable raw-GitHub mirror fallback, then digest-verified"
     }
   ],
   "totalBytes": 204555393

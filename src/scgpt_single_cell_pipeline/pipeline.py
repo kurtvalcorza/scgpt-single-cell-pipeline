@@ -49,9 +49,14 @@ MANIFEST_NAME = "dimer-base-manifest.json"
 CONFIG_NAME = "config.json"
 WEIGHTS_NAME = "model.safetensors"
 VOCAB_NAME = "vocab.json"
-# The vocabulary's persistent source (TDC `scgpt_vocab`, Harvard Dataverse datafile 10809431). It is
-# the only manifest entry that is not a Hub file; `stage_missing_files` fetches it from here.
+# The vocabulary's persistent source (TDC `scgpt_vocab`, Harvard Dataverse datafile 10809431) and
+# an immutable mirror of the exact committed bytes. It is the only manifest entry that is not a Hub
+# file; `stage_missing_files` tries Dataverse first and uses the mirror only when that request fails.
 VOCAB_SOURCE_URL = "https://dataverse.harvard.edu/api/access/datafile/10809431"
+VOCAB_MIRROR_URL = (
+    "https://raw.githubusercontent.com/kurtvalcorza/scgpt-single-cell-pipeline/"
+    "677560540f84664db00af8e03a924c65f0ca4e7a/weights/scgpt/vocab.json"
+)
 
 # Architecture facts from the pinned config.json; asserted against the file at load time.
 EMBSIZE = 512
@@ -112,17 +117,35 @@ def verify_snapshot(path: str | Path | None = None) -> dict[str, Any]:
 
 def _hub_download(relative_path: str, root: Path) -> None:
     """Fetch one manifest-listed file: Hub files at the pinned revision, the vocabulary from its
-    persistent Dataverse file id. The caller's `verify_snapshot` checks the digest afterwards."""
+    persistent Dataverse file id with an immutable repository mirror as availability fallback. The
+    caller's `verify_snapshot` checks the size and digest afterwards regardless of source."""
     if relative_path == VOCAB_NAME:
+        import urllib.error
         import urllib.request
 
-        request = urllib.request.Request(
-            VOCAB_SOURCE_URL, headers={"User-Agent": "scgpt-single-cell-pipeline"}
-        )
-        with urllib.request.urlopen(request, timeout=120) as response:
-            data = response.read()
-        (root / VOCAB_NAME).write_bytes(data)
-        return
+        last_error: Exception | None = None
+        for index, source_url in enumerate((VOCAB_SOURCE_URL, VOCAB_MIRROR_URL)):
+            request = urllib.request.Request(
+                source_url, headers={"User-Agent": "scgpt-single-cell-pipeline"}
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=120) as response:
+                    data = response.read()
+            except (urllib.error.URLError, TimeoutError) as exc:
+                last_error = exc
+                continue
+            if index:
+                warnings.warn(
+                    "Harvard Dataverse vocabulary fetch failed; used the immutable digest-verified "
+                    "repository mirror",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            (root / VOCAB_NAME).write_bytes(data)
+            return
+        raise RuntimeError(
+            "could not download vocab.json from Harvard Dataverse or its immutable mirror"
+        ) from last_error
     from huggingface_hub import hf_hub_download
 
     hf_hub_download(MODEL_ID, relative_path, revision=MODEL_REVISION, local_dir=str(root))

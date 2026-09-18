@@ -46,11 +46,16 @@ TEMPLATE = {
     "notebook_name": "scgpt_single_cell_colab.ipynb",
     "profile": "E2E",
     "mode": "GUIDED",
+    "external_access_extra": (
+        "Harvard Dataverse for the 1.3 MB vocabulary, with an immutable raw-GitHub URL for the "
+        "same digest-pinned bytes only when Dataverse is unavailable"
+    ),
     "run_all": (
         "Selecting **Run all** in a fresh supported runtime installs the pinned dependencies (torch, safetensors, numpy, "
         "huggingface-hub — no transformers, no PyTDC), stages and digest-verifies the pinned scGPT snapshot (4 files, "
         "~205 MB: config, weights and README from the Hub, the gene vocabulary from its persistent Harvard Dataverse file "
-        "id), rebuilds the encoder on plain torch modules and loads the weights strictly, generates a deterministic "
+        "id with an immutable exact-byte mirror fallback), rebuilds the encoder on plain torch modules and loads the weights "
+        "strictly, generates a deterministic "
         "64-cell dataset in code from two real PBMC marker programmes (no download), validates the cells and the dataset "
         "contract, splits them into stratified train/validation/test sets, shows how a cell becomes (gene, bin) tokens, "
         "computes `<cls>` cell embeddings and checks they are reproducible and gene-order invariant, probes the "
@@ -87,7 +92,8 @@ TEMPLATE = {
         "The checkpoint here is the *whole-human* encoder repackaged in safetensors by Therapeutics Data Commons. The Hub "
         "repository ships no model code, so this pipeline rebuilds the encoder on plain torch modules whose parameter names "
         "match the checkpoint exactly, and the gene vocabulary — which is not in the Hub repository — is fetched from its "
-        "persistent Dataverse file id and digest-verified like everything else. Section 3 loads it; Section 7 probes what the "
+        "persistent Dataverse file id or its immutable exact-byte mirror and digest-verified like everything else. Section 3 "
+        "loads it; Section 7 probes what the "
         "pretrained decoder can and cannot do.\n\n"
         "The tutorial dataset is synthetic but built from **real lineage programmes**: 24 canonical T-lymphocyte marker genes "
         "and 24 B-lymphocyte marker genes, plus 300 background genes from the vocabulary. A `t-like` cell places the T "

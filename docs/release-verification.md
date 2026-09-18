@@ -65,7 +65,7 @@ Before changing the registry status from `Candidate` to `Release-grade`:
 2. open that exact notebook revision in a new CPU or CUDA runtime (Colab, or a fresh-container executor above) with
    **no repository checkout**, an empty Hugging Face cache, and no pre-staged files under the working-directory
    snapshot `weights/scgpt/` (the standalone path writes the manifest itself and stages every listed file — three
-   from the Hub, the vocabulary from Dataverse — so the directory may not be seeded);
+   from the Hub, the vocabulary from Dataverse or its immutable exact-byte mirror — so the directory may not be seeded);
 3. run the notebook top-to-bottom without editing implementation cells (form parameters at their defaults:
    `USE_BYOD = False`, `VAL_FRACTION = 0.2`, `TEST_FRACTION = 0.25`, `SEED = 42`, `EPOCHS = 4`,
    `LEARNING_RATE = 1e-4`, `BATCH_SIZE = 8`, `TRAINABLE_LAYERS = 1`);
@@ -82,8 +82,8 @@ Before changing the registry status from `Candidate` to `Release-grade`:
      package;
    - the inline manifest asserted against the module's constants, then `stage_missing_files(..., allow_download=True)`
      reporting the 4 entries fetched — `config.json`, `model.safetensors`, `README.md` from `tdc/scGPT` at the
-     immutable revision and `vocab.json` from Dataverse datafile 10809431 — and `verify_snapshot` reporting 4
-     verified files before the model loads;
+     immutable revision and `vocab.json` from Dataverse datafile 10809431 or the documented immutable mirror — and
+     `verify_snapshot` reporting 4 verified files before the model loads;
    - the load report showing the re-implemented encoder loaded strictly (no warnings) on the chosen device;
    - the two marker programmes printed, then the dataset manifest with 64 records, classes `['b-like', 't-like']`,
      32 each, 348 detected and 348 encodable genes per cell, library sizes within 0.1 % of 20,000, the ceilings and
@@ -140,6 +140,6 @@ runtime, not general estimates.
 The notebook source is complete and passes all static checks, including the generator parity checks (`--check` OK).
 A local pre-flight execution of the committed blob completed the whole default path on CPU, which catches defects but
 is **not** a supported runtime under REL1/REL10 — and it ran with the snapshot pre-staged, so neither the 203 MB Hub
-download nor the **Dataverse vocabulary fetch** (`stage_missing_files` routing `vocab.json` to datafile 10809431) has
-been exercised end to end by the notebook; the hosted run must cover both. The repository stays at **Candidate** until
-a Colab or fresh-container run of the exact release revision is recorded above.
+download nor the vocabulary staging path (`stage_missing_files` trying Dataverse datafile 10809431 first and the
+immutable exact-byte mirror on failure) has been exercised end to end by the notebook; the hosted run must cover both.
+The repository stays at **Candidate** until a Colab or fresh-container run of the exact release revision is recorded above.
