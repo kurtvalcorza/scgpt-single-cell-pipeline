@@ -123,6 +123,7 @@ A known-failing default path in the supported runtime blocks release (REL11).
 | Notebook | Commit / notebook blob | Date (UTC) | Executor | Outcome |
 |---|---|---|---|---|
 | `scgpt_single_cell_colab.ipynb` | `d192ed2` / `6b2676db` | 2026-09-18 | Local pre-flight harness (Windows, CPython 3.12.10, CPU, `google.colab` shim, pins pre-installed) | PASS — pre-flight only, **not** promotion evidence |
+| `scgpt_single_cell_colab.ipynb` | `0f66318` / `31e26691` | 2026-09-18 | Kaggle fresh GPU container (`gcr.io/kaggle-gpu-images/python@sha256:37c64f7…`, CPython 3.12.13, Tesla T4), strict serial executor v3 | **PASS — supported clean-runtime qualification evidence.** Exact commit and fetched Git blob verified; empty Hub cache and no pre-staged snapshot; one expected interpreter restart after dependency installation; all 14 code cells completed. Repository remains Candidate pending an explicit maintainer promotion decision. |
 
 ## Recorded executions
 
@@ -134,12 +135,14 @@ runtime, not general estimates.
 | Date (UTC) | Commit / notebook blob | Executor | Path exercised | Wall | Outcome |
 |---|---|---|---|---|---|
 | 2026-09-18 | `d192ed2` / `6b2676db` | Local pre-flight harness (Windows, CPython 3.12.10, CPU float32, `torch 2.14.0+cpu`) | Default sample path (validate → split → binning + reject probes → embed + invariance checks → masked-expression probes → centroid/majority/library baselines → adapt → evaluate → classify → export → reload); weights and vocabulary pre-staged, so `stage_missing_files` fetched 0 of 4 entries and `verify_snapshot` verified all 4 | 16.1 s | **PASSED** — 14/14 code cells; nearest-centroid 1.0 with no training; adaptation of 1,579,010 params in 7.6 s; test accuracy/macro-F1/AUROC 1.0 (n=16) against majority 0.5/0.3333 and library-size 0.625/0.619; masked probe Pearson 0.0149 and no lineage conditioning (the recorded negative); 6/6 new cells; reload parity 0.0. Pre-flight; hosted clean-runtime run still required |
+| 2026-09-18 | `0f66318` / `31e26691` | Kaggle fresh GPU container, CPython 3.12.13, Tesla T4, `torch 2.14.0+cu130`, CUDA 13.0; exact fetched blob verified; empty Hub cache | Default standalone path from an empty snapshot (install → expected restart → fetch and digest-verify → validate → split → binning + reject probes → embed + invariance checks → masked-expression probes → centroid/majority/library baselines → adapt → evaluate → classify → export → reload). The Harvard Dataverse request returned HTTP 504, so the documented immutable exact-byte mirror supplied `vocab.json`; its declared 1,317,639 bytes and SHA-256 were verified with the other three files. | 193.1 s | **PASSED** — 14/14 code cells after one expected restart; all 4 snapshot entries verified (205 MB staged); nearest-centroid accuracy 1.0; adaptation of 1,579,010 params in 6.95 s; test accuracy/macro-F1/AUROC 1.0 (n=16) against majority 0.5/0.3333 and library-size 0.625/0.619/0.7188; masked probe Pearson 0.0045 and the same documented weak lineage conditioning; 6/6 new cells; seven preserved artifacts with SHA-256 digests; adapter reload parity 0.0. This is qualification evidence, not a maintainer promotion decision. |
 
 ## Current status
 
-The notebook source is complete and passes all static checks, including the generator parity checks (`--check` OK).
-A local pre-flight execution of the committed blob completed the whole default path on CPU, which catches defects but
-is **not** a supported runtime under REL1/REL10 — and it ran with the snapshot pre-staged, so neither the 203 MB Hub
-download nor the vocabulary staging path (`stage_missing_files` trying Dataverse datafile 10809431 first and the
-immutable exact-byte mirror on failure) has been exercised end to end by the notebook; the hosted run must cover both.
-The repository stays at **Candidate** until a Colab or fresh-container run of the exact release revision is recorded above.
+The notebook source passes all static checks, including generator parity (`--check` OK), and exact candidate commit
+`0f66318` / notebook blob `31e26691` completed the supported clean-runtime procedure in a fresh Kaggle Tesla T4
+container. The run started with an empty Hub cache and snapshot, staged and verified all model files, exercised the
+immutable vocabulary fallback when Dataverse returned HTTP 504, completed all 14 code cells, and preserved hashed
+outputs. The clean-runtime execution gate is therefore satisfied for that exact candidate. The repository remains
+**Candidate** until the maintainer explicitly approves promotion to `Release-grade`; a later code or notebook change
+requires qualification of the new exact revision.
