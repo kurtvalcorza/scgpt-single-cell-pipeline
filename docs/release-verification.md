@@ -122,7 +122,7 @@ A known-failing default path in the supported runtime blocks release (REL11).
 
 | Notebook | Commit / notebook blob | Date (UTC) | Executor | Outcome |
 |---|---|---|---|---|
-| `scgpt_single_cell_colab.ipynb` | __LOCAL_ROW__ | | | |
+| `scgpt_single_cell_colab.ipynb` | `d192ed2` / `6b2676db` | 2026-09-18 | Local pre-flight harness (Windows, CPython 3.12.10, CPU, `google.colab` shim, pins pre-installed) | PASS — pre-flight only, **not** promotion evidence |
 
 ## Recorded executions
 
@@ -133,10 +133,13 @@ runtime, not general estimates.
 
 | Date (UTC) | Commit / notebook blob | Executor | Path exercised | Wall | Outcome |
 |---|---|---|---|---|---|
-| __LOCAL_EXEC__ | | | | | |
+| 2026-09-18 | `d192ed2` / `6b2676db` | Local pre-flight harness (Windows, CPython 3.12.10, CPU float32, `torch 2.14.0+cpu`) | Default sample path (validate → split → binning + reject probes → embed + invariance checks → masked-expression probes → centroid/majority/library baselines → adapt → evaluate → classify → export → reload); weights and vocabulary pre-staged, so `stage_missing_files` fetched 0 of 4 entries and `verify_snapshot` verified all 4 | 16.1 s | **PASSED** — 14/14 code cells; nearest-centroid 1.0 with no training; adaptation of 1,579,010 params in 7.6 s; test accuracy/macro-F1/AUROC 1.0 (n=16) against majority 0.5/0.3333 and library-size 0.625/0.619; masked probe Pearson 0.0149 and no lineage conditioning (the recorded negative); 6/6 new cells; reload parity 0.0. Pre-flight; hosted clean-runtime run still required |
 
 ## Current status
 
 The notebook source is complete and passes all static checks, including the generator parity checks (`--check` OK).
-The repository stays at **Candidate** until a Colab or fresh-container run of the exact release revision is recorded
-above.
+A local pre-flight execution of the committed blob completed the whole default path on CPU, which catches defects but
+is **not** a supported runtime under REL1/REL10 — and it ran with the snapshot pre-staged, so neither the 203 MB Hub
+download nor the **Dataverse vocabulary fetch** (`stage_missing_files` routing `vocab.json` to datafile 10809431) has
+been exercised end to end by the notebook; the hosted run must cover both. The repository stays at **Candidate** until
+a Colab or fresh-container run of the exact release revision is recorded above.
