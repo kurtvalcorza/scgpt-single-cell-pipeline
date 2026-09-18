@@ -1,0 +1,36 @@
+[project]
+name = "scgpt-single-cell-pipeline"
+version = "0.1.0"
+description = "DIMER pipeline for scGPT (tdc/scGPT): single-cell expression embeddings, masked-expression prediction and bounded cell-state classification fine-tuning"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Kurt Valcorza" }]
+dependencies = [
+  # The scGPT encoder is re-implemented in this package on plain torch modules (nn.TransformerEncoder
+  # plus the gene, value and expression-decoder blocks), matching the pinned checkpoint's state-dict
+  # layout exactly. No transformers, no PyTDC, no flash-attn: docs/WEIGHTS.md explains why.
+  "torch==2.14.0",
+  "safetensors==0.8.0",
+  "numpy==2.5.3",
+  "huggingface-hub==1.32.0",
+]
+[project.optional-dependencies]
+dev = ["pytest==8.4.2", "ruff==0.16.6"]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+[tool.hatch.build.targets.wheel]
+packages = ["src/scgpt_single_cell_pipeline"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["tutorials"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
