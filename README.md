@@ -71,7 +71,7 @@ Tests are offline: injected backends, toy vocabularies and temporary manifests, 
 
 ## Release status
 
-**Candidate — clean-runtime qualified, promotion pending.** Exact candidate commit `0f66318` / notebook blob `31e26691` passed all 14 code cells in a fresh Kaggle Tesla T4 container with an empty cache and snapshot. The run fetched and verified the complete snapshot, including the documented immutable vocabulary fallback after Harvard Dataverse returned HTTP 504, and preserved seven hashed output artifacts. See `docs/release-verification.md`. This qualification evidence does not itself promote the repository; `Release-grade` still requires an explicit maintainer decision. The fleet inventory's nominated first contract for this row — multi-batch integration — is not implemented; see `MODEL_CARD.md` (*DIMER deployment notes*).
+**Candidate — verification pending.** The regenerated notebook (isolated environment, no restart) has no hosted one-pass Run all recorded yet. The previous notebook (commit `0f66318` / blob `31e26691`) completed all 14 code cells in a fresh Kaggle Tesla T4 container only after an interpreter restart (`restarted: true`), so that run is a functional record, not clean-runtime qualification; it fetched and verified the complete snapshot, including the documented immutable vocabulary fallback after Harvard Dataverse returned HTTP 504. See `docs/release-verification.md`. `Release-grade` requires a recorded one-pass Run all of the exact current blob and an explicit maintainer decision. The fleet inventory's nominated first contract for this row — multi-batch integration — is not implemented; see `MODEL_CARD.md` (*DIMER deployment notes*).
 
 ## Licensing
 

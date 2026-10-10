@@ -377,3 +377,18 @@ def test_S1_S2_saturation_and_library_size_chance_are_disclosed() -> None:
     assert "p ≈ 0.16" in md and "±12 counts" in md
     source = (TOOLS / "tutorial_stages.py").read_text(encoding="utf-8")
     assert "saturated: the zero-training nearest-centroid rule is already perfect" in source
+
+
+def test_stage_processes_import_neither_ipython_nor_google_colab() -> None:
+    """Stages run in the isolated environment, which has neither IPython nor google.colab: only kernel cells may use
+    them (the BYOD upload dialog). A carried module that imported either would fail on Colab; there is no worker and
+    no google.colab stub to give a ModuleSpec (swin2sr-x4-super-resolution-pipeline 34eac6c / tirex 9ee5922 pattern)."""
+    build = _load("scg_build_notebook_carried", TOOLS / "build_notebook.py")
+    template = _load("scg_notebook_template_carried", TOOLS / "notebook_template.py").TEMPLATE
+    carried = [ROOT / source for dest, source in build.carried_sources(ROOT, template).items() if dest.endswith(".py")]
+    assert any(path.name == "tutorial_stages.py" for path in carried)
+    assert any(path.name == "pipeline.py" for path in carried)
+    offenders = [str(path) for path in carried if re.search(r"^\s*(from|import)\s+(IPython|google)\b", path.read_text(encoding="utf-8"), re.M)]
+    assert not offenders, offenders
+    text = NB.read_text(encoding="utf-8")
+    assert "sys.modules['google" not in text and 'sys.modules[\\"google' not in text and "_WORKER_SOURCE" not in text
