@@ -1,0 +1,104 @@
+[colab] Parsing notebook '/home/kurt/colab-runs/scgpt-single-cell-pipeline-8d35011-a079c6/scgpt_single_cell_colab_8d35011_colab-cli-t4.ipynb'...
+[colab] Executing cell 1/14 - Infrastructure: check the runtime, accelerator and disk; create (or keep) the run directory...
+{'accelerator': 'Tesla T4, 15360 MiB', 'kernel_python': '3.13.15', 'run_directory': '/content/dimer_runs/scgpt_single_cell/ec8ae1636617', 'outputs': '/content/outputs', 'weights': '/content/weights', 'environment_root': '/tmp/dimer_uv', 'free_gib': {'weights': 193.3, 'environment': 193.3}}
+[colab] Executing cell 2/14 - Infrastructure: write and verify the carried package, stage runner, lock, manifest and samples...
+{'carried_files': 9, 'verified': True, 'repository': 'kurtvalcorza/scgpt-single-cell-pipeline', 'revision': '90a8bcd103bbe242d2d0aa4008e32112b3faadd4', 'generator': 'build_notebook.py/3.0'}
+[colab] Executing cell 3/14 - Infrastructure: build (or reuse) the isolated locked environment and define the stage runner...
+{'notebook_source': '90a8bcd103bbe242d2d0aa4008e32112b3faadd4', 'python': '3.12.12', 'torch': '2.14.0', 'safetensors': '0.8.0', 'numpy': '2.5.3', 'cuda': True, 'locked_packages': 43, 'environment': '/tmp/dimer_uv/venv-a600a39503990efb', 'environment_reused': False, 'setup_seconds': 62}
+[colab] Executing cell 4/14 - Infrastructure: stage and digest-verify the pinned checkpoint...
+Running stage 'weights' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/weights.log
+{'model_id': 'tdc/scGPT', 'revision': 'acf749f35bf5c0b00633838f02588272ed0d9911', 'license': 'mit', 'files': 4, 'total_bytes': 204555393}
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+{'weights_dir': '/content/weights/scgpt', 'fetched': ['README.md', 'config.json', 'model.safetensors', 'vocab.json']}
+{'vocabulary_source': 'https://dataverse.harvard.edu/api/access/datafile/10809431', 'note': 'fetched from the persistent Harvard Dataverse file id'}
+{'verified_files': 4, 'revision': 'acf749f35bf5c0b00633838f02588272ed0d9911', 'weights': 'model.safetensors', 'vocabulary_sha256': 'ee2b2c90158eedb9...'}
+[colab] Executing cell 5/14 - scgpt_single_cell-15...
+Running stage 'data' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/data.log
+{'t_cell_programme': ['CD3D', 'CD3E', 'CD3G', 'CD2', 'IL7R', 'LTB', 'CD7', 'TRAC', 'CD247', 'LCK', 'CD5', 'CD6', 'TCF7', 'LEF1', 'CCR7', 'IL32', 'GZMK', 'CD8A', 'CD8B', 'CD4', 'CD27', 'CD28', 'ITK', 'ZAP70']}
+{'b_cell_programme': ['CD79A', 'CD79B', 'MS4A1', 'CD19', 'CD22', 'BANK1', 'PAX5', 'VPREB3', 'TCL1A', 'IGHM', 'IGHD', 'IGKC', 'CD74', 'HLA-DRA', 'HLA-DRB1', 'HLA-DQA1', 'HLA-DQB1', 'HLA-DPA1', 'HLA-DPB1', 'FCER2', 'CR2', 'BLK', 'FCRL1', 'TNFRSF13C']}
+{'background_genes': 300, 'first_five': ['ACAD8', 'AGGF1P10', 'ANKS3', 'ANO10', 'ANXA2']}
+{'data_source': 'synthetic marker-programme dataset (seed 20260918, 64 cells, real gene symbols)', 'n_records': 64, 'classes': ['b-like', 't-like'], 'class_counts': {'b-like': 32, 't-like': 32}}
+{'detected_genes': {'min': 348, 'max': 348, 'mean': 348.0}, 'encodable_genes': {'min': 348, 'max': 348, 'mean': 348.0}, 'library_size': {'min': 19986.0, 'max': 20012.0, 'mean': 19999.5}}
+{'ceilings': {'max_genes_per_cell': 1535, 'min_detected_genes': 10, 'max_records': 2000, 'max_classes': 20, 'min_records': 8, 'min_records_per_class': 3}, 'digest': 'ce627233142524cf...'}
+{'train': 36, 'validation': 12, 'test': 16, 'new_cells': 6, 'new_cells_source': 'freshly generated marker-programme cells (seed 7), never in any split'}
+wrote outputs/scgpt_single_cell_dataset.csv (genes-as-columns, the shape BYOD expects)
+[colab] Executing cell 6/14 - scgpt_single_cell-18...
+Running stage 'tokens' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/tokens.log
+{'id': 't-cell-031', 'label': 't-like', 'tokens': 349, 'first_token_is_cls': True, 'n_bins': 51}
+{'top_genes': ['ARL6IP1P3', 'CSNK1A1P3', 'CD8A', 'ZNF768', 'TMEM127', 'ATP8A1', 'FBXO33', 'VPS26CP1', 'CD27', 'CD4'], 'top_bins': [50.0, 49.0, 49.0, 49.0, 49.0, 49.0, 49.0, 49.0, 48.0, 48.0]}
+{'bottom_genes': ['VPREB3', 'TAS2R18', 'ELOA3D', 'LARS1', 'PSMB7P1'], 'bottom_bins': [2.0, 2.0, 1.0, 1.0, 1.0]}
+{'scale_invariance': 'PASS', 'note': 'binning is rank-based within the cell, so multiplying every count by 37 must leave the tokens and bins unchanged'}
+{'max_genes_per_cell': 1535, 'max_cells_per_call': 32, 'min_detected_genes': 10, 'vocab_size': 60697, 'specials': {'pad': 60694, 'cls': 60695, 'eoc': 60696}}
+{'validation': 'type, finiteness and non-negativity of counts, a minimum number of detected genes, and gene-symbol resolution against the pinned 60,697-symbol vocabulary. Nothing checks that a profile is a real cell, that counts are on a consistent scale across cells, or that symbols follow one nomenclature'}
+{'probe': 'empty cell', 'rejected': 'cells[0] is empty'}
+{'probe': 'two genes', 'rejected': 'cells[0] has 2 detected gene(s); at least 10 are required to bin an expression profile'}
+{'probe': 'negative count', 'rejected': "cells[0]['CD3D'] must be a finite non-negative count, got -1"}
+{'probe': 'no known symbols', 'rejected': 'no gene in this cell could be encoded: none of the detected genes is in the scGPT vocabulary (check that gene '}
+{'truncation_probe': {'id': 'cell-0', 'detected_genes': 1585, 'encoded_genes': 1585, 'tokens_kept': 1535, 'genes_truncated': 50, 'unknown_genes': 0, 'library_size': 1256905.0}}
+{'verdict': 'accepted', 'n_cells': 4, 'max_tokens_observed': 349, 'requires_remote_code': False, 'written': 'outputs/scgpt_single_cell_input_manifest.json'}
+[colab] Executing cell 7/14 - scgpt_single_cell-21...
+Running stage 'embed' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/embed.log
+{'n_cells': 8, 'dimension': 512, 'tokens': [349, 349, 349, 349, 349, 349, 349, 349], 'pooling': "<cls> token output of the last encoder layer (cell_emb_style 'cls')", 'device': 'cuda:0'}
+{'same_batch_twice_identical': 'PASS', 'gene_order_invariance': 'PASS', 'single_vs_batch_within_1e-4': 'PASS', 'gene_order_max_abs_diff': 0.0, 'single_vs_batch_max_abs_diff': 2.175569534301758e-06, 'note': 'gene order never matters (tokens are ranked before encoding; no positional encoding); batch composition changes float accumulation order at the 1e-6 level'}
+{'raw_cosine_between_cells_mean': 0.87, 'centred_cosine_within_class': 0.6216, 'centred_cosine_between_classes': -0.7147, 'note': 'inspection only; embeddings are unlabelled representations'}
+wrote outputs/scgpt_single_cell_embeddings.csv
+[colab] Executing cell 8/14 - scgpt_single_cell-24...
+Running stage 'probe' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/probe.log
+{'mask_fraction': 0.15, 'mask_value': -1.0, 'n_bins': 51}
+{'mean_pearson': 0.0045, 'mean_absolute_error_bins': 12.611, 'note': "functional check of the re-implemented encoder against scGPT's masked-expression objective; bins are per-cell quantiles, so chance-level prediction sits near the mean bin"}
+{'id': 'b-cell-010', 'masked_positions': 52, 'mean_absolute_error_bins': 12.581, 'pearson': 0.0944, 'mean_true_bin': 26.827, 'mean_predicted_bin': 28.072}
+{'id': 'b-cell-026', 'masked_positions': 52, 'mean_absolute_error_bins': 11.6103, 'pearson': 0.0131, 'mean_true_bin': 25.365, 'mean_predicted_bin': 28.023}
+{'id': 'b-cell-025', 'masked_positions': 52, 'mean_absolute_error_bins': 12.9716, 'pearson': -0.1642, 'mean_true_bin': 24.808, 'mean_predicted_bin': 26.997}
+{'b-like / masked T markers': {'predicted_mean_bin': 28.858, 'true_mean_bin': 4.865}}
+{'b-like / masked B markers': {'predicted_mean_bin': 27.038, 'true_mean_bin': 46.25}}
+{'t-like / masked T markers': {'predicted_mean_bin': 28.368, 'true_mean_bin': 45.979}}
+{'t-like / masked B markers': {'predicted_mean_bin': 32.022, 'true_mean_bin': 5.062}}
+{'reading': 'a decoder that used lineage context would predict T markers high in t-like cells and low in b-like cells; compare the predicted bins across the rows'}
+[colab] Executing cell 9/14 - scgpt_single_cell-27...
+Running stage 'baselines' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/baselines.log
+{'baseline': 'nearest class centroid on centred frozen <cls> embeddings (no training)', 'fitted_on': 'training split only (mean and centroids)', 'n': 16, 'accuracy': 1.0, 'macro_f1': 1.0, 'auroc': 1.0}
+{'baseline': 'majority-class', 'predicted_label': 'b-like', 'accuracy': 0.5, 'macro_f1': 0.3333}
+{'baseline': 'library-size threshold', 'rule': "predict 't-like' when total counts < 20003", 'train_accuracy': 0.6111, 'accuracy': 0.625, 'macro_f1': 0.619, 'auroc': 0.7188}
+[colab] Executing cell 10/14 - scgpt_single_cell-30...
+Running stage 'adapt' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/adapt.log
+{'method': 'gradient fine-tuning (AdamW) of a linear head over the <cls> cell embedding and the last 1 encoder layer(s)', 'trainable_parameters': 1579010, 'total_parameters': 50805251, 'precision': 'float32', 'device': 'cuda:0', 'seconds': 9.12}
+{'epoch': 1, 'train_loss': 0.480555, 'n_batches': 5, 'val_accuracy': 1.0, 'val_macro_f1': 1.0}
+{'epoch': 2, 'train_loss': 0.213344, 'n_batches': 5, 'val_accuracy': 1.0, 'val_macro_f1': 1.0}
+{'epoch': 3, 'train_loss': 0.088643, 'n_batches': 5, 'val_accuracy': 1.0, 'val_macro_f1': 1.0}
+{'epoch': 4, 'train_loss': 0.035427, 'n_batches': 5, 'val_accuracy': 1.0, 'val_macro_f1': 1.0}
+{'adapter': 'outputs/scgpt_single_cell_adapter', 'note': 'the trained tensors are written now; Sections 10-12 rebuild the classifier from these files in fresh processes'}
+[colab] Executing cell 11/14 - scgpt_single_cell-33...
+Running stage 'evaluate' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/evaluate.log
+{'split': 'validation', 'n': 12, 'accuracy': 1.0, 'macro_f1': 1.0, 'auroc': 1.0}
+{'split': 'test', 'n': 16, 'accuracy': 1.0, 'macro_f1': 1.0, 'auroc': 1.0}
+{'class': 'b-like', 'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'support': 8, 'predicted': 8}
+{'class': 't-like', 'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'support': 8, 'predicted': 8}
+{'delta_vs_nearest_centroid': {'accuracy': 0.0, 'macro_f1': 0.0}, 'delta_vs_majority': {'accuracy': 0.5, 'macro_f1': 0.6667}, 'same_as_adapting_process': True}
+{'interpretation': 'saturated: the zero-training nearest-centroid rule is already perfect on this split, so the fine-tuned head cannot show a gain here; the result shows the adaptation contract works, not that adaptation helps', 'report': 'outputs/scgpt_single_cell_evaluation_report.json'}
+[colab] Executing cell 12/14 - scgpt_single_cell-36...
+Running stage 'export' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/export.log
+{'cells': 'freshly generated marker-programme cells (seed 7), never in any split', 'decision_rule': 'argmax over softmax(logits); scores are softmax outputs, not calibrated probabilities'}
+{'id': 'new-b-cell-000', 'predicted': 'b-like', 'score': 0.925, 'true_label': 'b-like'}
+{'id': 'new-t-cell-000', 'predicted': 't-like', 'score': 0.9417, 'true_label': 't-like'}
+{'id': 'new-b-cell-001', 'predicted': 'b-like', 'score': 0.9146, 'true_label': 'b-like'}
+{'id': 'new-t-cell-001', 'predicted': 't-like', 'score': 0.9724, 'true_label': 't-like'}
+{'id': 'new-b-cell-002', 'predicted': 'b-like', 'score': 0.9713, 'true_label': 'b-like'}
+{'id': 'new-t-cell-002', 'predicted': 't-like', 'score': 0.9581, 'true_label': 't-like'}
+{'matches': 6, 'of': 6, 'note': 'a sanity check on held-out labels, not an evaluation'}
+{'format': 'org.valcorza.scgpt-single-cell.adapter.v1', 'base_model': {'model_id': 'tdc/scGPT', 'model_revision': 'acf749f35bf5c0b00633838f02588272ed0d9911', 'license': 'mit'}, 'requires_remote_code': False, 'n_tensors': 14, 'files': [{'path': 'adapter.safetensors', 'bytes': 6317552, 'sha256': '2e5277f2ea8c7a6839adfeba38c2ab92f78ba5eeef24376e8f64a1b18117df15'}]}
+{'reload_parity': 'PASS', 'process': 'fresh (separate from the adapting stage)', 'labels_equal': True, 'max_abs_score_diff': 0.0, 'tolerance': 1e-05}
+[colab] Executing cell 13/14 - scgpt_single_cell-39...
+Running stage 'result' in the isolated environment; log: /content/dimer_runs/scgpt_single_cell/ec8ae1636617/logs/result.log
+{'model_id': 'tdc/scGPT', 'revision': 'acf749f35bf5', 'repository_revision': '90a8bcd103bb', 'runtime': {'python': '3.12.12', 'torch': '2.14.0', 'safetensors': '0.8.0', 'numpy': '2.5.3', 'device': 'cuda:0', 'cuda': True, 'precision': 'float32'}}
+outputs/:
+  - outputs/scgpt_single_cell_adapter/adapter.safetensors (6169.5 KB)
+  - outputs/scgpt_single_cell_adapter/manifest.json (2.7 KB)
+  - outputs/scgpt_single_cell_dataset.csv (69.0 KB)
+  - outputs/scgpt_single_cell_embeddings.csv (42.0 KB)
+  - outputs/scgpt_single_cell_evaluation_report.json (6.3 KB)
+  - outputs/scgpt_single_cell_input_manifest.json (2.4 KB)
+  - outputs/scgpt_single_cell_predictions.csv (0.3 KB)
+  - outputs/scgpt_single_cell_result.json (15.4 KB)
+[colab] Executing cell 14/14 - scgpt_single_cell-41...
+Optional activity skipped: tick RUN_ACTIVITY to run it. The canonical outputs are complete.
+[colab] Saving notebook with outputs to '/home/kurt/colab-runs/scgpt-single-cell-pipeline-8d35011-a079c6/scgpt_single_cell_colab_8d35011_colab-cli-t4_output.ipynb'...
