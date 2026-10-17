@@ -109,11 +109,22 @@ default sample, all five manifest entries digest-verified. This is a source-leve
 | Generative call, expression decoder (`<cls>` value -2) | 0.0346 | 12.546 |
 | Generative call, MVC head | 0.1055 | 12.712 |
 
-The MLM call's 0.0149 is identical on CPU at the base revision `4875d9b`, so the T4/CPU gap is float arithmetic, not a code
-change; the lineage rows of the MLM call match the T4 record to three decimals (28.858 / 27.038 / 28.368 / 32.022). On the review's
+The MLM call's 0.0149 is identical on CPU at the base revision `4875d9b`, which rules out this source change as the cause of
+the T4/CPU gap; the gap is an observed cross-environment difference (hardware, torch 2.14.0 vs 2.14.1, kernels) whose cause
+was not isolated; the lineage rows of the MLM call match the T4 record to three decimals (28.858 / 27.038 / 28.368 / 32.022). On the review's
 32-cell synthetic comparison the new API reproduces the review's CPU numbers: 0.0867 (MLM), 0.0809 (generative, `<cls>` 0),
 0.0648 (generative, `<cls>` -2), 0.1509 (MVC head, `<cls>` -2). The notebook quotes these numbers as local CPU results until a
 hosted run of the new blob is recorded.
+
+Round 2 (Codex peer review) added, on the same masks, a per-gene prior (mean training-split bin of each masked gene), a
+constant baseline (mean bin of the cell's unmasked genes; MAE only) and a shuffled-context control (the masked genes placed
+into the next cell's context), plus 5 mask seeds (42-46). Default-seed numbers above are unchanged. Notebook sample, CPU,
+default seed: gene prior 0.0025 (MAE 12.744), constant MAE 12.611, MLM / generative / MVC with another cell's context
+-0.0142 / -0.0123 / 0.0117. Over 5 seeds, mean [min, max] of the mean Pearson: MLM 0.040 [0.007, 0.101], generative
+0.031 [-0.030, 0.071], MVC 0.136 [0.099, 0.205], gene prior 0.020 [-0.030, 0.065]. Real `pbmc3k` (the review's 32 cells,
+this API, prior from 200 other pbmc3k cells): MLM 0.314, generative 0.3712, MVC 0.551,
+gene prior 0.5756, MVC with another cell's context 0.4782; MAE MLM 11.814, generative 12.0, constant 11.815.
+Full records: `docs/reviews/2026-10-17-tutorial-review/t80_r2_pbmc.json` and `run3_probe.log`. All descriptive; CPU only.
 
 ## Current status
 

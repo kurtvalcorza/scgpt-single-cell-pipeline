@@ -70,8 +70,9 @@ VOCAB_SIZE = 60697
 SPECIAL_TOKENS = ("<pad>", "<cls>", "<eoc>")
 # scGPT input convention: per-cell quantile binning into N_BINS after normalisation, `<cls>` first
 # with value 0, and the value encoder clamps at VALUE_CLAMP. MASK_VALUE (-1) is upstream's fine-tuning
-# MLM convention (DataCollator, tutorials); whole-human was pretrained generatively instead (see
-# predict_masked_generative).
+# MLM convention (DataCollator, tutorials). The cited upstream census pretraining script uses a
+# generative convention instead (see predict_masked_generative); the released checkpoint's exact
+# training configuration is unverified.
 N_BINS = 51
 TARGET_SUM = 10_000.0
 MASK_VALUE = -1.0
@@ -85,8 +86,9 @@ MIN_DETECTED_GENES = 10  # fewer measured genes cannot be binned into a meaningf
 # The two pretraining heads the TDC packaging dropped: `flag_encoder` (the "generate this gene"
 # embedding) and `mvc_decoder` (masked value from the cell embedding). The generative masked-expression
 # call needs both. They exist only in the original checkpoint, a pickle at the same pinned Hub revision;
-# `tools/derive_pretrain_heads.py` audited it, loaded it once with `weights_only=True` and wrote these
-# four tensors to safetensors. The manifest lists the result as its fifth entry with the original's size
+# `tools/derive_pretrain_heads.py` checked its pinned digest, ran a static pre-check of its pickle
+# opcodes (not a security audit), loaded it once with `weights_only=True` and wrote these four tensors
+# to safetensors. The manifest lists the result as its fifth entry with the original's size
 # and SHA-256; it is fetched from an immutable raw-GitHub commit.
 PRETRAIN_HEADS_NAME = "pretrain_heads.safetensors"
 PRETRAIN_HEADS_TENSORS = {
@@ -491,6 +493,19 @@ def _bin_scores(truth: Sequence[float], guess: Sequence[float]) -> dict[str, Any
     }
 
 
+def gene_bin_prior(cells: Sequence[Mapping[str, float]], vocabulary: GeneVocabulary) -> dict[int, float]:
+    """Mean bin of each gene token over the cells where it is detected (a per-gene baseline that uses
+    gene identity only, never the cell being predicted)."""
+    sums: dict[int, float] = {}
+    counts: dict[int, int] = {}
+    for cell in cells:
+        e = bin_expression(dict(cell), vocabulary)
+        for token, value in zip(e["tokens"][1:], e["values"][1:], strict=True):
+            sums[token] = sums.get(token, 0.0) + float(value)
+            counts[token] = counts.get(token, 0) + 1
+    return {token: sums[token] / counts[token] for token in sums}
+
+
 def build_model(config: Mapping[str, Any], vocabulary: GeneVocabulary) -> Any:
     """The scGPT encoder on plain torch modules, named so the pinned checkpoint loads strictly.
 
@@ -736,12 +751,14 @@ class ScGPTPipeline:
         """Masked-expression probe under upstream's fine-tuning MLM convention (exploratory).
 
         A seeded fraction of each cell's gene positions receives MASK_VALUE (-1, the value upstream's
-        DataCollator and fine-tuning tutorials use; whole-human itself was pretrained generatively, see
-        `predict_masked_generative`); the expression decoder predicts a bin for every position, and the
+        DataCollator and fine-tuning tutorials use; the cited upstream pretraining script uses a
+        generative convention instead, see `predict_masked_generative`); the expression decoder
+        predicts a bin for every position, and the
         masked ones are compared with the true bins (mean absolute error and Pearson correlation per
-        cell). The decoder's predictions sit in a compressed band (about bins 26-33), so this is a probe
-        of what the decoder has learned, not an imputer. Data without co-expression structure, such as
-        the tutorial's code-generated cells, leaves every convention near zero correlation.
+        cell). Pearson is the correlation across the masked genes within one cell; summaries average
+        it over the cells where it is defined. The decoder's predictions sit in a compressed band
+        (about bins 26-33). This is a descriptive probe; it does not validate imputation. On the
+        tutorial's synthetic profiles every reading stays near zero; the cause has not been isolated.
         """
         if self.model is None:
             raise RuntimeError("predict_masked requires a pipeline built by from_pretrained")
@@ -885,16 +902,21 @@ class ScGPTPipeline:
         seed: int = 42,
         cls_value: float = PRETRAIN_CLS_VALUE,
     ) -> dict[str, Any]:
-        """Masked-expression prediction under the generative convention whole-human was pretrained with.
+        """Masked-expression prediction under the generative convention of the cited upstream
+        pretraining script; the released checkpoint's exact training configuration is unverified.
 
-        The convention is inferred from upstream's census pretraining script (`--training-tasks` defaults
-        to `both`) and from the `flag_encoder` the original checkpoint carries; the command line used for
-        the released checkpoint is not published. The masked genes enter as gene embedding + flag
+        The convention is the default of upstream's census pretraining script (`--training-tasks`
+        defaults to `both`); the original checkpoint's `flag_encoder` and MVC head are compatible with
+        it, but the command line used for the released checkpoint is not published. The attention
+        partition follows upstream `flash_layers.py` (read, not executed: it needs flash-attn on CUDA),
+        so this is a reimplementation without upstream numerical parity; a two-stream reference in
+        `tests/test_generative_numerics.py` checks it numerically.
+        The masked genes enter as gene embedding + flag
         embedding with **no value**; each attends to `<cls>`, the known genes and itself, and the known
         genes never see it. Two heads read the result, on the same masks as `predict_masked`: the
         expression decoder (the same `expr_decoder` the MLM probe uses) at the generated positions, and
         the MVC head, which predicts each masked gene's bin from the `<cls>` cell embedding and the
-        gene's own embedding. Both are exploratory probes, not imputation.
+        gene's own embedding. Both are descriptive probes; neither validates imputation.
         """
         self._require_heads("predict_masked_generative")
         checked, ids = _check_cells(cells, names)
@@ -969,6 +991,92 @@ class ScGPTPipeline:
             "true_mean_bin": round(sum(r["true_mean_bin"] for r in rows) / n, 3),
             "genes_requested": len(wanted),
             "cls_value": float(cls_value),
+        }
+
+    def _mlm_single(
+        self, tokens: Sequence[int], values: Sequence[float], masked: set[int]
+    ) -> list[float]:
+        """The MLM reading for one token list: masked positions get MASK_VALUE, `<cls>` value 0."""
+        import torch
+
+        row = [MASK_VALUE if p in masked else float(v) for p, v in enumerate(values)]
+        row[0] = 0.0
+        ids = torch.tensor([list(tokens)], dtype=torch.long, device=self.device)
+        vals = torch.tensor([row], dtype=torch.float32, device=self.device)
+        pad = torch.zeros((1, len(tokens)), dtype=torch.bool, device=self.device)
+        with torch.no_grad():
+            pred = self.model(ids, vals, pad)["pred"][0].float().cpu().tolist()
+        return [pred[p] for p in sorted(masked)]
+
+    def masked_probe_controls(
+        self,
+        cells: Sequence[Mapping[str, float]],
+        *,
+        names: Sequence[str] | None = None,
+        mask_fraction: float = 0.15,
+        seed: int = 42,
+        prior: Mapping[int, float] | None = None,
+        cls_value: float = PRETRAIN_CLS_VALUE,
+    ) -> dict[str, Any]:
+        """Baselines and a control for the masked-expression readings, on the same masks.
+
+        * `constant`: every masked gene of a cell predicted as the mean bin of that cell's unmasked
+          genes (MAE only; a constant has no Pearson).
+        * `gene_prior`: each masked gene predicted as its mean bin over the `prior` cells (usually the
+          training split, from `gene_bin_prior`); genes absent from the prior get the prior's mean.
+        * `shuffled_context`: the same masked genes, with their true bins as targets, placed into the
+          next cell's context (cell i's genes into cell i+1's unmasked genes, wrapping round) and read
+          by all three heads. If a reading holds up with the wrong context, gene identity rather than
+          the cell's context is carrying it.
+        """
+        self._require_heads("masked_probe_controls")
+        checked, ids = _check_cells(cells, names)
+        encoded = [bin_expression(c, self.vocabulary) for c in checked]
+        mask = _random_masks(encoded, mask_fraction, seed)
+        prior_mean = sum(prior.values()) / len(prior) if prior else None
+        rows = []
+        n = len(encoded)
+        for i, (cid, e) in enumerate(zip(ids, encoded, strict=True)):
+            positions = sorted(mask[i])
+            truth = [e["values"][p] for p in positions]
+            targets = [e["tokens"][p] for p in positions]
+            known = [e["values"][p] for p in range(1, len(e["tokens"])) if p not in mask[i]]
+            row: dict[str, Any] = {"id": cid, "masked_positions": len(positions)}
+            const = sum(known) / len(known) if known else 0.0
+            row["constant"] = {
+                "mean_absolute_error_bins": round(sum(abs(t - const) for t in truth) / len(truth), 4),
+                "pearson": None,
+            }
+            if prior:
+                guess = [float(prior.get(t, prior_mean)) for t in targets]
+                row["gene_prior"] = {
+                    **_bin_scores(truth, guess),
+                    "genes_without_prior": sum(t not in prior for t in targets),
+                }
+            donor = encoded[(i + 1) % n]
+            excluded = set(targets)
+            context = [p for p in range(1, len(donor["tokens"])) if donor["tokens"][p] not in excluded]
+            context = context[: MAX_SEQ_LEN - 1 - len(targets)]
+            tokens = [donor["tokens"][0]] + [donor["tokens"][p] for p in context] + targets
+            values = [0.0] + [donor["values"][p] for p in context] + truth
+            placed = set(range(1 + len(context), len(tokens)))
+            mlm = self._mlm_single(tokens, values, placed)
+            expr, mvc = self._generate(tokens, values, placed, float(cls_value))
+            row["shuffled_context"] = {
+                "mlm": _bin_scores(truth, mlm),
+                "generative_decoder": _bin_scores(truth, expr),
+                "mvc_head": _bin_scores(truth, mvc),
+                "context_from": ids[(i + 1) % n],
+            }
+            rows.append(row)
+        return {
+            "cells": rows,
+            "mask_fraction": float(mask_fraction),
+            "cls_value": float(cls_value),
+            "note": (
+                "baselines and a context control on the same masks; reconstruction associations, "
+                "not proof of contextual recovery"
+            ),
         }
 
     def nearest_centroid_evaluate(

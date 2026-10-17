@@ -1,0 +1,42 @@
+{'cells': 8, 'mask_fraction': 0.15, 'n_bins': 51, 'same_masks': True, 'generative_cls_value': -2.0, 'default_mask_seed': 42}
+{'pearson': 'correlation between predicted and true bins across the masked genes of one cell; a mean is over the cells where it is defined'}
+{'pipeline MLM call (expression decoder, masked value -1)': {'mean_pearson': 0.0149, 'mean_absolute_error_bins': 12.601, 'valid_cells': 8}}
+{'generative call (expression decoder, masked genes flagged, no value)': {'mean_pearson': 0.0346, 'mean_absolute_error_bins': 12.546, 'valid_cells': 8}}
+{'generative call (MVC head, from the <cls> cell embedding)': {'mean_pearson': 0.1055, 'mean_absolute_error_bins': 12.712, 'valid_cells': 8}}
+{'per-cell Pearson (default seed)': "cell: MLM / generative / MVC / gene prior / MVC with another cell's context"}
+{'b-cell-010': [0.0944, 0.1004, 0.0015, 0.0368, -0.0622]}
+{'b-cell-026': [-0.0007, -0.0238, 0.1807, 0.0894, 0.2691]}
+{'b-cell-025': [-0.0678, -0.1437, 0.0657, 0.13, 0.0414]}
+{'b-cell-005': [-0.128, -0.2107, 0.1395, -0.0065, -0.3029]}
+{'t-cell-023': [0.0556, 0.0955, 0.0228, -0.0641, 0.0405]}
+{'t-cell-013': [0.0771, 0.2029, 0.0598, 0.0034, 0.0444]}
+{'t-cell-007': [0.0544, 0.1518, 0.1213, 0.0008, 0.1329]}
+{'t-cell-025': [0.034, 0.1041, 0.253, -0.1701, -0.0694]}
+{"gene prior (each masked gene's mean training-split bin)": {'mean_pearson': 0.0025, 'mean_absolute_error_bins': 12.744, 'valid_cells': 8}}
+{"constant (mean bin of the cell's unmasked genes; MAE only)": {'mean_pearson': None, 'mean_absolute_error_bins': 12.611, 'valid_cells': 0}}
+{"MLM call, another cell's context": {'mean_pearson': -0.0142, 'mean_absolute_error_bins': 12.654, 'valid_cells': 8}}
+{"generative call, another cell's context": {'mean_pearson': -0.0123, 'mean_absolute_error_bins': 12.597, 'valid_cells': 8}}
+{"MVC head, another cell's context": {'mean_pearson': 0.0117, 'mean_absolute_error_bins': 12.951, 'valid_cells': 8}}
+{'over 5 mask seeds 42-46': 'mean [min, max] of the mean Pearson'}
+{'mlm': {'mean': 0.04, 'range': [0.0073, 0.101]}}
+{'generative': {'mean': 0.0305, 'range': [-0.0303, 0.0708]}}
+{'mvc': {'mean': 0.136, 'range': [0.0992, 0.2049]}}
+{'gene_prior': {'mean': 0.02, 'range': [-0.03, 0.0653]}}
+{'constant': {'mean': None, 'range': None}}
+{'mlm_shuffled_context': {'mean': -0.0071, 'range': [-0.0504, 0.0639]}}
+{'generative_shuffled_context': {'mean': -0.0067, 'range': [-0.0549, 0.0554]}}
+{'mvc_shuffled_context': {'mean': 0.0601, 'range': [0.0117, 0.0944]}}
+{'paired difference generative - mlm': {'mean': -0.0096, 'range': [-0.0384, 0.0197]}}
+{'paired difference mvc - mlm': {'mean': 0.096, 'range': [0.0267, 0.1359]}}
+{'paired difference mlm - gene_prior': {'mean': 0.02, 'range': [0.0068, 0.0373]}}
+{'paired difference generative - gene_prior': {'mean': 0.0105, 'range': [-0.0304, 0.0396]}}
+{'paired difference mvc - gene_prior': {'mean': 0.116, 'range': [0.0623, 0.1427]}}
+{'paired difference mlm - mlm_shuffled_context': {'mean': 0.0471, 'range': [0.0051, 0.1055]}}
+{'paired difference generative - generative_shuffled_context': {'mean': 0.0371, 'range': [0.0123, 0.0658]}}
+{'paired difference mvc - mvc_shuffled_context': {'mean': 0.0759, 'range': [0.0404, 0.1105]}}
+{'note': 'descriptive probe: these synthetic profiles differ substantially from measured cells, and the low correlations here do not diagnose a broken decoder; the cause has not been isolated. The heads are not ranked.'}
+{'b-like / masked T markers': {'predicted_mean_bin': 28.858, 'generative_decoder_mean_bin': 29.282, 'mvc_head_mean_bin': 24.939, 'true_mean_bin': 4.854}}
+{'b-like / masked B markers': {'predicted_mean_bin': 27.038, 'generative_decoder_mean_bin': 27.745, 'mvc_head_mean_bin': 22.324, 'true_mean_bin': 46.25}}
+{'t-like / masked T markers': {'predicted_mean_bin': 28.368, 'generative_decoder_mean_bin': 28.552, 'mvc_head_mean_bin': 21.367, 'true_mean_bin': 45.979}}
+{'t-like / masked B markers': {'predicted_mean_bin': 32.022, 'generative_decoder_mean_bin': 31.836, 'mvc_head_mean_bin': 27.718, 'true_mean_bin': 5.062}}
+{'reading': 'a head that used lineage context would predict T markers higher in t-like cells than in b-like cells; compare each column across the rows'}

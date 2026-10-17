@@ -5,11 +5,12 @@ two pretraining heads the generative masked-expression call needs: the ``flag_en
 generated" embedding) and the ``mvc_decoder`` (the masked-value-from-cell-embedding head). Both survive only in
 ``scgpt_gh_repo_original_model.bin``, a pickle in the same Hub repository at the same immutable revision. The pipeline
 and the notebook never load a pickle, so this script, run once in a scratch environment, follows the repository's
-pickle-audit procedure (``docs/WEIGHTS.md``) and writes the four needed tensors to safetensors:
+pickle-handling procedure (``docs/WEIGHTS.md``) and writes the four needed tensors to safetensors:
 
 1. the ``.bin`` must have the pinned byte size and SHA-256 (the Hub LFS ``oid`` at the pinned revision);
-2. every pickle inside the zip archive is audited statically with ``pickletools`` (no code is executed): each global it
-   references must be in a small allowlist of tensor-rebuild helpers;
+2. every pickle inside the zip archive gets a static pre-check with ``pickletools`` (no code is executed): each global it
+   references must be in a small allowlist of tensor-rebuild helpers. It tracks preceding string arguments rather than
+   emulating the pickle stack, so it is a pre-check, not a security audit; the pinned digest and step 3 are the controls;
 3. the archive is then loaded with ``torch.load(weights_only=True)``;
 4. only ``flag_encoder.weight``, ``mvc_decoder.W.weight``, ``mvc_decoder.gene2query.weight`` and
    ``mvc_decoder.gene2query.bias`` are written, as little-endian float32, with the source recorded in the

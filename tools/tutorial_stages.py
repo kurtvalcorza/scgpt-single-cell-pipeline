@@ -244,6 +244,8 @@ def stage_data(run: Run) -> None:
     test_fraction = float(opts.get("test_fraction", 0.25))
     wanted = int(opts.get("inference_cells", NEW_CELLS))
     vocab = vocabulary(run, P)
+    if use_byod and opts.get("byod_refusal"):
+        raise refusal(ValueError(str(opts["byod_refusal"])))
     if use_byod:
         # Validate before touching anything on disk: a refusal leaves the earlier outputs in place (marked invalid by main).
         path = Path(opts.get("byod_path") or "")
@@ -367,7 +369,7 @@ def stage_embed(run: Run) -> None:
         "gene_order_invariance": "PASS" if order_diff == 0.0 else "FAIL",
         "single_vs_batch_within_1e-4": "PASS" if cross_batch < BATCH_TOLERANCE else "FAIL",
     }
-    print({**checks, "gene_order_max_abs_diff": order_diff, "single_vs_batch_max_abs_diff": cross_batch, "note": "gene order never matters (tokens are ranked before encoding; no positional encoding); batch composition changes float accumulation order at the 1e-6 level"})
+    print({**checks, "gene_order_max_abs_diff": order_diff, "single_vs_batch_max_abs_diff": cross_batch, "note": "gene_order_invariance checks preprocessing: the input mapping's order is discarded because tokens are sorted before encoding (it does not test the encoder's own permutation invariance, which follows from its lack of positional encoding); batch composition changes float accumulation order at the 1e-6 level"})
     if "FAIL" in checks.values():
         raise RuntimeError(f"Embedding verification failed: {sorted(k for k, v in checks.items() if v == 'FAIL')} (gene-order max diff {order_diff:.3g}, single-vs-batch max diff {cross_batch:.3g}). The embeddings are not behaving as the encoder's design implies, so nothing after Section 6 would be trustworthy: delete weights/scgpt/, re-run Section 3 and then Section 4 onwards; see Troubleshooting.")
     mean = [sum(v[d] for v in vectors) / len(vectors) for d in range(len(vectors[0]))]
@@ -389,23 +391,108 @@ def stage_embed(run: Run) -> None:
     print(f"wrote outputs/{STEM}_embeddings.csv")
 
 
+PROBE_SEEDS = 5  # the default mask seed plus four more, for a descriptive spread (not a significance test)
+READINGS = ("mlm", "generative", "mvc")
+READING_NAMES = {
+    "mlm": "pipeline MLM call (expression decoder, masked value -1)",
+    "generative": "generative call (expression decoder, masked genes flagged, no value)",
+    "mvc": "generative call (MVC head, from the <cls> cell embedding)",
+}
+
+
+def probe_columns(masked: dict[str, Any], generative: dict[str, Any], controls: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Per-cell scores of every reading, baseline and control on one mask seed, as columns of cell rows."""
+    return {
+        "mlm": masked["cells"],
+        "generative": [c["expression_decoder"] for c in generative["cells"]],
+        "mvc": [c["mvc_head"] for c in generative["cells"]],
+        "gene_prior": [c["gene_prior"] for c in controls["cells"]],
+        "constant": [c["constant"] for c in controls["cells"]],
+        "mlm_shuffled_context": [c["shuffled_context"]["mlm"] for c in controls["cells"]],
+        "generative_shuffled_context": [c["shuffled_context"]["generative_decoder"] for c in controls["cells"]],
+        "mvc_shuffled_context": [c["shuffled_context"]["mvc_head"] for c in controls["cells"]],
+    }
+
+
+def paired_mean(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> float | None:
+    """Mean over cells of (Pearson a - Pearson b), over the cells where both are defined."""
+    diffs = [x["pearson"] - y["pearson"] for x, y in zip(a, b, strict=True) if x["pearson"] is not None and y["pearson"] is not None]
+    return round(sum(diffs) / len(diffs), 4) if diffs else None
+
+
+PAIRS = (
+    ("generative", "mlm"), ("mvc", "mlm"),
+    ("mlm", "gene_prior"), ("generative", "gene_prior"), ("mvc", "gene_prior"),
+    ("mlm", "mlm_shuffled_context"), ("generative", "generative_shuffled_context"), ("mvc", "mvc_shuffled_context"),
+)
+
+
+def summarise_probe(per_seed: list[dict[str, list[dict[str, Any]]]]) -> dict[str, Any]:
+    """Across mask seeds: each column's mean Pearson (mean of per-cell values over valid cells) and MAE as mean and
+    [min, max] over seeds, plus paired per-cell differences between columns. Descriptive only."""
+    def spread(values: list[float | None]) -> dict[str, Any]:
+        kept = [v for v in values if v is not None]
+        if not kept:
+            return {"mean": None, "range": None}
+        return {"mean": round(sum(kept) / len(kept), 4), "range": [round(min(kept), 4), round(max(kept), 4)]}
+
+    columns = {}
+    for name in per_seed[0]:
+        scores = [mean_scores(seed_cols[name]) for seed_cols in per_seed]
+        columns[name] = {
+            "mean_pearson": spread([s["mean_pearson"] for s in scores]),
+            "mean_absolute_error_bins": spread([s["mean_absolute_error_bins"] for s in scores]),
+            "valid_cells": [s["valid_cells"] for s in scores],
+        }
+    pairs = {f"{a} - {b}": spread([paired_mean(c[a], c[b]) for c in per_seed]) for a, b in PAIRS if a in per_seed[0] and b in per_seed[0]}
+    return {"seeds": len(per_seed), "columns": columns, "paired_pearson_differences": pairs}
+
+
 def stage_probe(run: Run) -> None:
     P = package(run.root)
     data = records(run, "probe")
     pipe = base_pipeline(run, P)
     rows = data["validation"][:8]
-    masked = pipe.predict_masked(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=data["seed"])
-    summary = mean_scores(masked["cells"])
-    generative = pipe.predict_masked_generative(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=data["seed"])
-    readings = {
-        "pipeline MLM call (expression decoder, masked value -1)": summary,
-        "generative call (expression decoder, masked genes flagged, no value)": mean_scores([c["expression_decoder"] for c in generative["cells"]]),
-        "generative call (MVC head, from the <cls> cell embedding)": mean_scores([c["mvc_head"] for c in generative["cells"]]),
-    }
-    print({"cells": len(rows), "mask_fraction": masked["mask_fraction"], "n_bins": masked["n_bins"], "same_masks": True, "generative_cls_value": generative["cls_value"]})
+    prior = P.gene_bin_prior(counts_of(data["train"]), pipe.vocabulary)
+    seeds = [data["seed"] + k for k in range(PROBE_SEEDS)]
+    per_seed = []
+    for seed in seeds:
+        masked = pipe.predict_masked(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=seed)
+        generative = pipe.predict_masked_generative(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=seed)
+        controls = pipe.masked_probe_controls(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=seed, prior=prior)
+        per_seed.append(probe_columns(masked, generative, controls))
+        if seed == seeds[0]:
+            default_masked, default_generative = masked, generative
+    default = per_seed[0]
+    summary = {k: v for k, v in mean_scores(default["mlm"]).items() if k != "valid_cells"}
+    readings = {READING_NAMES[k]: {k2: v for k2, v in mean_scores(default[k]).items() if k2 != "valid_cells"} for k in READINGS}
+    print({"cells": len(rows), "mask_fraction": default_masked["mask_fraction"], "n_bins": default_masked["n_bins"], "same_masks": True, "generative_cls_value": default_generative["cls_value"], "default_mask_seed": seeds[0]})
+    print({"pearson": "correlation between predicted and true bins across the masked genes of one cell; a mean is over the cells where it is defined"})
     for name, row in readings.items():
+        print({name: {**row, "valid_cells": mean_scores(default[[k for k in READINGS if READING_NAMES[k] == name][0]])["valid_cells"]}})
+    print({"per-cell Pearson (default seed)": "cell: MLM / generative / MVC / gene prior / MVC with another cell's context"})
+    for i, cell_id in enumerate(ids_of(rows)):
+        print({cell_id: [default[k][i]["pearson"] for k in ("mlm", "generative", "mvc", "gene_prior", "mvc_shuffled_context")]})
+    baselines = {
+        "gene prior (each masked gene's mean training-split bin)": mean_scores(default["gene_prior"]),
+        "constant (mean bin of the cell's unmasked genes; MAE only)": mean_scores(default["constant"]),
+        "MLM call, another cell's context": mean_scores(default["mlm_shuffled_context"]),
+        "generative call, another cell's context": mean_scores(default["generative_shuffled_context"]),
+        "MVC head, another cell's context": mean_scores(default["mvc_shuffled_context"]),
+    }
+    for name, row in baselines.items():
         print({name: row})
-    print({"note": "exploratory probe, not imputation; the code-generated cells have no co-expression structure, so every reading sits near zero correlation here (see the text below)"})
+    spread_summary = summarise_probe(per_seed)
+    print({f"over {len(seeds)} mask seeds {seeds[0]}-{seeds[-1]}": "mean [min, max] of the mean Pearson"})
+    for name, col in spread_summary["columns"].items():
+        print({name: col["mean_pearson"]})
+    for name, pair in spread_summary["paired_pearson_differences"].items():
+        print({f"paired difference {name}": pair})
+    if data["use_byod"]:
+        note = "descriptive probe on your cells: read each head against the gene-prior baseline and the shuffled-context control; these are reconstruction associations, not proof that a head recovers cell-specific expression, and the heads are not ranked"
+    else:
+        note = "descriptive probe: these synthetic profiles differ substantially from measured cells, and the low correlations here do not diagnose a broken decoder; the cause has not been isolated. The heads are not ranked."
+    print({"note": note})
     lineage: dict[str, Any] | None = None
     if data["use_byod"]:
         print({"lineage_probe": "skipped", "reason": "it masks the tutorial's T- and B-cell marker programmes and compares t-like with b-like cells; your labels need not be those lineages, so the question it asks does not apply"})
@@ -420,13 +507,13 @@ def stage_probe(run: Run) -> None:
         for key, row in lineage.items():
             print({key: row})
         print({"reading": "a head that used lineage context would predict T markers higher in t-like cells than in b-like cells; compare each column across the rows"})
-    run.write_state("probe.json", {**summary, "readings": readings, "generative_cls_value": generative["cls_value"], "lineage_probe": lineage})
+    run.write_state("probe.json", {**summary, "readings": readings, "baselines": baselines, "mask_seeds": seeds, "seed_summary": spread_summary, "generative_cls_value": default_generative["cls_value"], "lineage_probe": lineage})
 
 
 def mean_scores(rows: list[dict[str, Any]]) -> dict[str, Any]:
     pearsons = [r["pearson"] for r in rows if r["pearson"] is not None]
     maes = [r["mean_absolute_error_bins"] for r in rows]
-    return {"mean_pearson": round(sum(pearsons) / len(pearsons), 4) if pearsons else None, "mean_absolute_error_bins": round(sum(maes) / len(maes), 3)}
+    return {"mean_pearson": round(sum(pearsons) / len(pearsons), 4) if pearsons else None, "mean_absolute_error_bins": round(sum(maes) / len(maes), 3), "valid_cells": len(pearsons)}
 
 
 def stage_baselines(run: Run) -> None:
@@ -462,9 +549,10 @@ def stage_adapt(run: Run) -> None:
     reference = {split: pipe.evaluate(data[split]) for split in ("validation", "test")}
     parity_rows = data["new"] or data["test"][:NEW_CELLS]
     reference_predictions = pipe.classify(counts_of(parity_rows), names=ids_of(parity_rows))["predictions"]
+    reference_test_predictions = pipe.classify(counts_of(data["test"]), names=ids_of(data["test"]))["predictions"]
     artifact = run.out / f"{STEM}_adapter"
     pipe.save_artifact(artifact, metadata={"data_source": data["source"], "dataset_digest": data["manifest"]["digest"], "settings": settings})
-    run.write_state("adapt.json", {"settings": settings, "seconds": seconds, "adaptation": {k: v for k, v in result.items() if k != "trainable_parameter_names"}, "reference_metrics": reference, "reference_predictions": reference_predictions, "parity_ids": ids_of(parity_rows), "artifact": str(artifact), "device": pipe.device})
+    run.write_state("adapt.json", {"settings": settings, "seconds": seconds, "adaptation": {k: v for k, v in result.items() if k != "trainable_parameter_names"}, "reference_metrics": reference, "reference_predictions": reference_predictions, "reference_test_predictions": reference_test_predictions, "parity_ids": ids_of(parity_rows), "artifact": str(artifact), "device": pipe.device})
     print({"adapter": f"outputs/{STEM}_adapter", "note": "the trained tensors are written now; Sections 10-12 rebuild the classifier from these files in fresh processes"})
 
 
@@ -485,6 +573,12 @@ def stage_evaluate(run: Run) -> None:
     print({"split": "test", **{k: test_metrics[k] for k in ("n", "accuracy", "macro_f1", "auroc")}})
     for cls_name, row in test_metrics["per_class"].items():
         print({"class": cls_name, **row})
+    if "reference_test_predictions" not in adapt:
+        raise RuntimeError("adapt.json has no reference test predictions (it was written by an older runner): re-run Section 9, then Section 10.")
+    fresh = pipe.classify(counts_of(data["test"]), names=ids_of(data["test"]))["predictions"]
+    ref_test = adapt["reference_test_predictions"]
+    test_labels_equal = [(p["id"], p["label"]) for p in fresh] == [(p["id"], p["label"]) for p in ref_test]
+    test_max_score_diff = max(abs(a["scores"][c] - b["scores"][c]) for a, b in zip(fresh, ref_test, strict=True) for c in pipe.classes)
     reference = adapt["reference_metrics"]["test"]
     drift = {k: abs((test_metrics[k] or 0.0) - (reference[k] or 0.0)) for k in ("accuracy", "macro_f1", "auroc") if test_metrics.get(k) is not None or reference.get(k) is not None}
     centroid, majority = baselines["nearest_centroid"], baselines["majority"]
@@ -509,6 +603,7 @@ def stage_evaluate(run: Run) -> None:
         "test_metrics": test_metrics,
         "computed_by": "a fresh process that rebuilt the classifier from the exported adapter",
         "max_abs_metric_difference_vs_adapting_process": rounded(max(drift.values()) if drift else 0.0, 8),
+        "test_prediction_parity": {"labels_equal": test_labels_equal, "max_abs_score_difference": test_max_score_diff, "tolerance": RELOAD_TOLERANCE, "cells": len(fresh)},
         "delta_vs_nearest_centroid": {k: round(test_metrics[k] - centroid[k], 4) for k in ("accuracy", "macro_f1")},
         "delta_vs_majority": {k: round(test_metrics[k] - majority[k], 4) for k in ("accuracy", "macro_f1")},
         "interpretation": interpretation,
@@ -516,11 +611,13 @@ def stage_evaluate(run: Run) -> None:
         "adaptation": adapt["adaptation"],
         "adaptation_seconds": adapt["seconds"],
     }
+    if not test_labels_equal or test_max_score_diff > RELOAD_TOLERANCE:
+        raise RuntimeError(f"Evaluation parity failed: on the {len(fresh)} test cells the exported adapter in this fresh process does not reproduce the adapting process's predictions (labels equal: {test_labels_equal}, max score difference {test_max_score_diff:.3g} > {RELOAD_TOLERANCE}). The export or the base weights changed between Sections 9 and 10; no evaluation report was written. Re-run Section 9, then Section 10.")
     if report["max_abs_metric_difference_vs_adapting_process"] != 0.0:
         raise RuntimeError(f"Evaluation parity failed: the metrics computed by the exported adapter in this fresh process differ from the adapting process's by {report['max_abs_metric_difference_vs_adapting_process']} (accuracy, macro-F1, AUROC on the test split). The export or the base weights changed between Sections 9 and 10; no evaluation report was written. Re-run Section 9, then Section 10.")
     run.write_output(f"{STEM}_evaluation_report.json", report)
     run.write_state("evaluate.json", {"test": {k: test_metrics[k] for k in ("n", "accuracy", "macro_f1", "auroc")}})
-    print({"delta_vs_nearest_centroid": report["delta_vs_nearest_centroid"], "delta_vs_majority": report["delta_vs_majority"], "same_as_adapting_process": report["max_abs_metric_difference_vs_adapting_process"] == 0.0})
+    print({"delta_vs_nearest_centroid": report["delta_vs_nearest_centroid"], "delta_vs_majority": report["delta_vs_majority"], "same_as_adapting_process": report["max_abs_metric_difference_vs_adapting_process"] == 0.0, "test_labels_equal": test_labels_equal, "test_max_score_difference": test_max_score_diff})
     print({"interpretation": interpretation, "report": f"outputs/{STEM}_evaluation_report.json"})
 
 

@@ -74,8 +74,11 @@ def test_t80_1_probe_text_names_the_data_cause_and_the_conventions() -> None:
     text = "\n".join(_cells())
     assert "training-time mask value" not in text and "property of the shipped decoder" not in text
     assert "chance-level" not in text and "does not use lineage context" not in text
-    assert "code-generated" in _cells()[25] and "not an imputer" in _cells()[25] and "26–33" in _cells()[25]
-    assert "predict_masked_generative" in _cells()[23] and "no command line" in _cells()[23]
+    assert "co-expression structure" not in text and "not a usable imputer" not in text and "wired correctly" not in text
+    assert "the cause hasn't been isolated" in _cells()[25] and "doesn't validate imputation" in _cells()[25]
+    assert "predicted T markers higher in T cells" not in _cells()[25]  # round 2: lineage claim from another protocol removed
+    assert "released checkpoint's exact training configuration is unverified" in _cells()[23] and "no command line" in _cells()[23]
+    assert "gene prior" in _cells()[23] and "shuffled-context control" in _cells()[23]
     src = (ROOT / "tools" / "tutorial_stages.py").read_text(encoding="utf-8")
     assert "pipe.predict_masked_generative(" in src and "pipe.predict_masked_genes_generative(" in src
 
@@ -173,3 +176,46 @@ def test_t80_6_kernel_does_not_raise_on_a_refusal() -> None:
     carrier = next(c for c in _cells() if "def run_stage(stage, **options):" in c)
     assert "if error.get('refusal') and process.returncode == 3:" in carrier
     assert STAGES.REFUSED_EXIT == 3
+
+
+# ---------------------------------------------------------------- round 2 (Codex peer review, items 2, 4, 9)
+
+
+def _col(*pearsons):
+    return [{"pearson": r, "mean_absolute_error_bins": 1.0} for r in pearsons]
+
+
+def test_r2_probe_summary_is_per_cell_mean_with_valid_counts_ranges_and_paired_differences() -> None:
+    seed_a = {"mlm": _col(0.1, None, 0.3), "mvc": _col(0.3, 0.5, 0.4)}
+    seed_b = {"mlm": _col(0.2, 0.2, 0.2), "mvc": _col(0.1, 0.1, 0.1)}
+    out = STAGES.summarise_probe([seed_a, seed_b])
+    assert out["seeds"] == 2 and out["columns"]["mlm"]["valid_cells"] == [2, 3]
+    assert out["columns"]["mlm"]["mean_pearson"] == {"mean": 0.2, "range": [0.2, 0.2]}
+    assert out["columns"]["mvc"]["mean_pearson"] == {"mean": 0.25, "range": [0.1, 0.4]}
+    # paired over cells where both are defined: seed a (0.3-0.1, 0.4-0.3) -> 0.15; seed b -> -0.1
+    assert out["paired_pearson_differences"]["mvc - mlm"] == {"mean": 0.025, "range": [-0.1, 0.15]}
+
+
+def test_r2_probe_stage_runs_five_seeds_baselines_and_conditional_commentary() -> None:
+    src = (ROOT / "tools" / "tutorial_stages.py").read_text(encoding="utf-8")
+    probe = src[src.index("def stage_probe(") : src.index("def mean_scores(")]
+    assert STAGES.PROBE_SEEDS == 5 and "masked_probe_controls(" in probe and "gene_bin_prior(" in probe
+    assert 'if data["use_byod"]:\n        note =' in probe and "the cause has not been isolated" in probe
+
+
+def test_r2_section10_compares_test_labels_and_score_vectors() -> None:
+    src = (ROOT / "tools" / "tutorial_stages.py").read_text(encoding="utf-8")
+    evaluate = src[src.index("def stage_evaluate(") : src.index("def stage_export(")]
+    assert 'adapt["reference_test_predictions"]' in evaluate and "test_max_score_diff > RELOAD_TOLERANCE" in evaluate
+    assert evaluate.index("test_max_score_diff > RELOAD_TOLERANCE") < evaluate.index("run.write_output(")
+    assert '"reference_test_predictions": reference_test_predictions' in src
+
+
+def test_r2_upload_failure_is_refused_and_invalidates_the_run(tmp_path) -> None:
+    code, _, _ = _main(tmp_path, "data", {})
+    assert code == 0
+    code, out, err = _main(tmp_path, "data", {"use_byod": True, "byod_path": "", "byod_refusal": "The upload was cancelled or empty: no file was received."})
+    assert code == STAGES.REFUSED_EXIT and "Traceback" not in out + err
+    assert out.startswith("BYOD input refused: The upload was cancelled or empty")
+    assert (tmp_path / "run" / "state" / STAGES.INVALIDATED).is_file()
+    assert (tmp_path / "outputs" / f"{STAGES.STEM}_dataset.csv").is_file()
