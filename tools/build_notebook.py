@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a STANDALONE DIMER tutorial notebook (NOTEBOOK_SPEC 2.2 §4) from repository sources — /3.
+"""Generate a STANDALONE DIMER tutorial notebook (NOTEBOOK_SPEC 2.5 §4) from repository sources — /3.
 
 /3 replaces the in-kernel ``pip install`` of /2 (and its restart-on-stale-import guard) with the isolated, hash-locked
 environment of the NOTEBOOK_SPEC 2.2 reference notebooks (§25.13; the fleet pattern of
@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any
 
 GENERATOR_VERSION = "build_notebook.py/3.0"
-NOTEBOOK_SPEC = "2.2"
+NOTEBOOK_SPEC = "2.5"
 SOURCE_RECORD = "source.json"
 LOCK_DEST = "requirements.txt"
 RUNNER_DEST = "tutorial_stages.py"
@@ -409,6 +409,8 @@ def run_stage(stage, **options):
         detail = 'see the log above'
         if error_file.is_file():
             error = json.loads(error_file.read_text(encoding='utf-8'))
+            if error.get('refusal') and process.returncode == 3:
+                return  # a refused input: the stage printed one actionable message; not a notebook failure (DAT20)
             detail = error['type'] + ': ' + error['message']
         raise RuntimeError(f'Stage {{stage!r}} failed (exit {{process.returncode}}): {{detail}}')
 
@@ -591,6 +593,7 @@ def render(repo: Path, template: dict[str, Any], revision: str | None = None) ->
             "dimer": {
                 "notebook_profile": template["profile"],
                 "notebook_mode": template["mode"],
+                "notebook_kind": template.get("kind", "TUTORIAL"),
                 "notebook_spec": NOTEBOOK_SPEC,
                 "standalone": True,
                 "requires_dimer_worker": False,

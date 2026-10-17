@@ -96,6 +96,25 @@ runtime, not general estimates.
 | 2026-09-18 | `0f66318` / `31e26691` | Kaggle fresh GPU container, CPython 3.12.13, Tesla T4, `torch 2.14.0+cu130`, CUDA 13.0; exact fetched blob verified; empty Hub cache | Default standalone path from an empty snapshot (install → expected restart → fetch and digest-verify → validate → split → binning + reject probes → embed + invariance checks → masked-expression probes → centroid/majority/library baselines → adapt → evaluate → classify → export → reload). The Harvard Dataverse request returned HTTP 504, so the documented immutable exact-byte mirror supplied `vocab.json`; its declared 1,317,639 bytes and SHA-256 were verified with the other three files. | 193.1 s | **PASSED** — 14/14 code cells after one expected restart; all 4 snapshot entries verified (205 MB staged); nearest-centroid accuracy 1.0; adaptation of 1,579,010 params in 6.95 s; test accuracy/macro-F1/AUROC 1.0 (n=16) against majority 0.5/0.3333 and library-size 0.625/0.619/0.7188; masked probe Pearson 0.0045 and the same documented weak lineage conditioning; 6/6 new cells; seven preserved artifacts with SHA-256 digests; adapter reload parity 0.0. Restart-dependent (`restarted: true`): a functional record of the previous notebook, not one-pass clean-runtime evidence. |
 | 2026-10-10 (11:59:35 UTC start) | `8d35011f8a1aec7355f0effa425d0fa900749ed2` / `07755aa2ddf8c6a1fee7ea38964276b59b41f99d` (carried revision `90a8bcd103bb`, generator `build_notebook.py/3.0`) | Colab CLI 0.7.4 sequential execution (`colab exec -f`, not a browser Run all; order from `exec.log`, no execution counts), fresh Colab Tesla T4 VM (session `suite-scgpt-8d35011-a079`), committed blob fetched at the commit and checked before the VM was allocated; kernel Python 3.13.15, stage subprocesses in an isolated CPython 3.12.12 environment (43 locked packages, setup 62 s, not reused), `torch 2.14.0`, `cuda:0`, float32 | Default synthetic marker-programme path, `RUN_ACTIVITY` off | 143.7 s | **PASSED** — one pass, `restarted: false`, 0 errors; 14/14 code cells in order; 4 snapshot files digest-verified at `acf749f35bf5` plus the Dataverse vocabulary; 64 cells (32/32); ×37 scale invariance, gene-order invariance and batch checks PASS; masked-expression probe mean Pearson 0.0045; baselines: centroid 1.0 / 1.0 / 1.0, majority 0.5 / 0.3333, library-size 0.625 / 0.619 / 0.7188; adaptation 4 epochs, loss 0.481 → 0.035, 9.1 s; test (n = 16) accuracy / macro-F1 / AUROC 1.0, delta vs centroid 0.0, interpretation `saturated`; 6/6 new cells; reload parity PASS (labels equal, max score difference 0.0). Evidence in `docs/execution-evidence/2026-10-10-8d35011/`: executed notebook SHA-256 `d734036f86cebe0ee6d3cd1c22d7e1d7a3c1bede304e3f718ef39afd58500aad`, `run_summary.json` `05954b334f8a40302268faf039e34afc48ca66f95e4c663ad47bd71af5f1abd5`, `exec.log` `3b667bd1c571c86b367eaf79ba28903c6cc370b0a09be024cf5c62730bab0106`. Not exercised: the optional activity, BYOD, a browser Run all |
 
+## Local CPU run of the three-reading masked-expression probe — 2026-10-17 (not clean-runtime evidence)
+
+Branch `fix/scgpt-tutorial-review-2026-10-17` (tutorial review row 80, finding T80-1) adds the generative masked-expression
+call and the restored MVC head. Before any hosted run of the new blob, its probe stage was run locally: Windows, CPython 3.12,
+`torch 2.14.1+cpu`, float32, `CUDA_VISIBLE_DEVICES=-1`, the stage runner's `data`, `tokens`, `embed` and `probe` stages on the
+default sample, all five manifest entries digest-verified. This is a source-level CPU check, not a notebook execution.
+
+| Reading (8 validation cells, 15 % masked, same masks) | Mean Pearson (CPU) | Mean absolute error (bins) |
+|---|---|---|
+| Pipeline MLM call (masked value -1) | 0.0149 (the recorded Colab CLI T4 run at `8d35011`: 0.0045) | 12.601 |
+| Generative call, expression decoder (`<cls>` value -2) | 0.0346 | 12.546 |
+| Generative call, MVC head | 0.1055 | 12.712 |
+
+The MLM call's 0.0149 is identical on CPU at the base revision `4875d9b`, so the T4/CPU gap is float arithmetic, not a code
+change; the lineage rows of the MLM call match the T4 record to three decimals (28.858 / 27.038 / 28.368 / 32.022). On the review's
+32-cell synthetic comparison the new API reproduces the review's CPU numbers: 0.0867 (MLM), 0.0809 (generative, `<cls>` 0),
+0.0648 (generative, `<cls>` -2), 0.1509 (MVC head, `<cls>` -2). The notebook quotes these numbers as local CPU results until a
+hosted run of the new blob is recorded.
+
 ## Current status
 
 **Candidate — one-pass hosted run recorded.** The regenerated notebook (generator /3, isolated environment, no in-kernel install

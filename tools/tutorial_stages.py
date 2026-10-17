@@ -10,12 +10,16 @@ verified snapshot under ``--weights``, the records of earlier stages under ``RUN
 learner-facing exports under ``--outputs``. The adapted head lives only in the exported adapter: the ``adapt`` stage
 writes it, and the ``evaluate``, ``export`` and ``result`` stages rebuild the classifier from it in fresh processes, so
 every held-out number is computed by the artifact a user would receive. On failure a stage writes
-``RUN_DIR/state/<stage>.error.json``, which the notebook re-raises in the kernel.
+``RUN_DIR/state/<stage>.error.json``, which the notebook re-raises in the kernel. A refused BYOD input is not a failure:
+the stage prints one actionable message without a traceback, exits with ``REFUSED_EXIT``, keeps earlier outputs on disk
+but marks the run invalid (``state/run_invalidated.json`` plus ``outputs/<stem>_RUN_INVALIDATED.txt``), and every later
+stage declines to run until Section 4 succeeds again.
 
 Stages: weights → data → tokens → embed → probe → baselines → adapt → evaluate → export → result, plus the optional
 ``activity``. ``data`` and ``tokens`` import no model library, so CI exercises them directly. No stage asserts a quality
-level: invariance and parity checks print a verdict; only a broken contract (a reload that does not reproduce the
-adapting process's predictions) stops the notebook.
+level, but every verification check gates success (NOTEBOOK_SPEC 2.5 VER6): a failed embedding check (Section 6), a
+non-zero metric drift between the fresh-process evaluation and the adapting process (Section 10) and a reload that does
+not reproduce the adapting process's predictions (Section 11) each stop the run with an error naming the check.
 """
 # ruff: noqa: E501  -- the printed dictionaries are the learner-facing output; they are kept on one line each
 from __future__ import annotations
@@ -39,6 +43,14 @@ NEW_CELLS = 6  # cells classified after training: freshly generated (sample) or 
 NEW_CELLS_SEED = 7
 RELOAD_TOLERANCE = 1e-5  # max |score difference| between the adapting process and a fresh reload of its adapter
 BATCH_TOLERANCE = 1e-4  # single-cell vs in-batch embedding: float accumulation order only
+REFUSED_EXIT = 3  # a refused BYOD input: reported as one message, not as a failure (DAT20)
+INVALIDATED = "run_invalidated.json"
+
+
+def refusal(exc: BaseException) -> BaseException:
+    """Mark an input-validation error as a BYOD refusal (DAT19-DAT20): one message, no traceback."""
+    exc.byod_refusal = True  # type: ignore[attr-defined]
+    return exc
 
 
 class Run:
@@ -59,6 +71,10 @@ class Run:
         return path
 
     def read_state(self, name: str, needed_by: str) -> Any:
+        marker = self.state / INVALIDATED
+        if marker.is_file():
+            reason = json.loads(marker.read_text(encoding="utf-8")).get("message", "")
+            raise refusal(ValueError(f"'{needed_by}' did not run: Section 4 refused the last input ({reason}), so the earlier results in outputs/ are not current. Fix the file (or set USE_BYOD = False) and run Section 4 again, then the sections after it."))
         path = self.state / name
         if not path.is_file():
             raise RuntimeError(f"{name} is missing: run the stage that writes it before '{needed_by}' (run the notebook in order from Section 3)")
@@ -227,24 +243,26 @@ def stage_data(run: Run) -> None:
     val_fraction = float(opts.get("val_fraction", 0.2))
     test_fraction = float(opts.get("test_fraction", 0.25))
     wanted = int(opts.get("inference_cells", NEW_CELLS))
-    removed = clear_outputs(run)
-    for name in ("data.json", "embed.json", "probe.json", "baselines.json", "adapt.json", "evaluate.json", "export.json"):
-        (run.state / name).unlink(missing_ok=True)
-    if removed:
-        print({"removed_previous_outputs": removed})
     vocab = vocabulary(run, P)
     if use_byod:
+        # Validate before touching anything on disk: a refusal leaves the earlier outputs in place (marked invalid by main).
         path = Path(opts.get("byod_path") or "")
         if not str(path) or not path.is_file():
-            raise FileNotFoundError(f"BYOD_PATH {str(path)!r} is not a file in this runtime: upload the file or correct the path.")
+            raise refusal(FileNotFoundError(f"BYOD_PATH {str(path)!r} is not a file in this runtime: upload the file or correct the path."))
         if path.suffix.lower() not in (".csv", ".json", ".jsonl"):
-            raise ValueError(f"{path.name}: BYOD must be a genes-as-columns .csv, a .json array or a .jsonl file of {{id, counts, label}} records (export an AnnData .h5ad to CSV first).")
+            raise refusal(ValueError(f"{path.name}: BYOD must be a genes-as-columns .csv, a .json array or a .jsonl file of {{id, counts, label}} records (export an AnnData .h5ad to CSV first)."))
         try:
             rows = P.load_byod_dataset(path)
             P.validate_dataset(rows, vocabulary=vocab)
             checked_split(P, rows, val_fraction, test_fraction, seed)
         except (ValueError, TypeError) as exc:
-            raise ValueError(f"{path.name}: {exc}") from None
+            raise refusal(ValueError(f"{path.name}: {exc}")) from None
+    removed = clear_outputs(run)
+    for name in (INVALIDATED, "data.json", "embed.json", "probe.json", "baselines.json", "adapt.json", "evaluate.json", "export.json"):
+        (run.state / name).unlink(missing_ok=True)
+    if removed:
+        print({"removed_previous_outputs": removed})
+    if use_byod:
         rows, new_rows, held_note = hold_back(P, rows, wanted, seed, val_fraction, test_fraction)
         new_source = f"{len(new_rows)} BYOD cells held back before the split" if new_rows else "none held back"
         source = f"BYOD ({path.name})"
@@ -351,7 +369,7 @@ def stage_embed(run: Run) -> None:
     }
     print({**checks, "gene_order_max_abs_diff": order_diff, "single_vs_batch_max_abs_diff": cross_batch, "note": "gene order never matters (tokens are ranked before encoding; no positional encoding); batch composition changes float accumulation order at the 1e-6 level"})
     if "FAIL" in checks.values():
-        print("A check above failed: the embeddings are not behaving as the encoder's design implies. Read Troubleshooting before trusting later sections.")
+        raise RuntimeError(f"Embedding verification failed: {sorted(k for k, v in checks.items() if v == 'FAIL')} (gene-order max diff {order_diff:.3g}, single-vs-batch max diff {cross_batch:.3g}). The embeddings are not behaving as the encoder's design implies, so nothing after Section 6 would be trustworthy: delete weights/scgpt/, re-run Section 3 and then Section 4 onwards; see Troubleshooting.")
     mean = [sum(v[d] for v in vectors) / len(vectors) for d in range(len(vectors[0]))]
     centred = [[x - m for x, m in zip(v, mean, strict=True)] for v in vectors]
     raw_pairs, within, between = [], [], []
@@ -377,13 +395,17 @@ def stage_probe(run: Run) -> None:
     pipe = base_pipeline(run, P)
     rows = data["validation"][:8]
     masked = pipe.predict_masked(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=data["seed"])
-    pearsons = [c["pearson"] for c in masked["cells"] if c["pearson"] is not None]
-    maes = [c["mean_absolute_error_bins"] for c in masked["cells"]]
-    summary = {"mean_pearson": round(sum(pearsons) / len(pearsons), 4) if pearsons else None, "mean_absolute_error_bins": round(sum(maes) / len(maes), 3)}
-    print({"mask_fraction": masked["mask_fraction"], "mask_value": masked["mask_value"], "n_bins": masked["n_bins"]})
-    print({**summary, "note": masked["note"]})
-    for c in masked["cells"][:3]:
-        print(c)
+    summary = mean_scores(masked["cells"])
+    generative = pipe.predict_masked_generative(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=data["seed"])
+    readings = {
+        "pipeline MLM call (expression decoder, masked value -1)": summary,
+        "generative call (expression decoder, masked genes flagged, no value)": mean_scores([c["expression_decoder"] for c in generative["cells"]]),
+        "generative call (MVC head, from the <cls> cell embedding)": mean_scores([c["mvc_head"] for c in generative["cells"]]),
+    }
+    print({"cells": len(rows), "mask_fraction": masked["mask_fraction"], "n_bins": masked["n_bins"], "same_masks": True, "generative_cls_value": generative["cls_value"]})
+    for name, row in readings.items():
+        print({name: row})
+    print({"note": "exploratory probe, not imputation; the code-generated cells have no co-expression structure, so every reading sits near zero correlation here (see the text below)"})
     lineage: dict[str, Any] | None = None
     if data["use_byod"]:
         print({"lineage_probe": "skipped", "reason": "it masks the tutorial's T- and B-cell marker programmes and compares t-like with b-like cells; your labels need not be those lineages, so the question it asks does not apply"})
@@ -393,11 +415,18 @@ def stage_probe(run: Run) -> None:
             cells_of = [r["counts"] for r in data["validation"] if r["label"] == label][:4]
             for marker_name, markers in (("T markers", P.T_CELL_PROGRAMME), ("B markers", P.B_CELL_PROGRAMME)):
                 probe = pipe.predict_masked_genes(cells_of, list(markers))
-                lineage[f"{label} / masked {marker_name}"] = {"predicted_mean_bin": probe["predicted_mean_bin"], "true_mean_bin": probe["true_mean_bin"]}
+                gen = pipe.predict_masked_genes_generative(cells_of, list(markers))
+                lineage[f"{label} / masked {marker_name}"] = {"predicted_mean_bin": probe["predicted_mean_bin"], "generative_decoder_mean_bin": gen["expression_decoder_mean_bin"], "mvc_head_mean_bin": gen["mvc_head_mean_bin"], "true_mean_bin": probe["true_mean_bin"]}
         for key, row in lineage.items():
             print({key: row})
-        print({"reading": "a decoder that used lineage context would predict T markers high in t-like cells and low in b-like cells; compare the predicted bins across the rows"})
-    run.write_state("probe.json", {**summary, "lineage_probe": lineage})
+        print({"reading": "a head that used lineage context would predict T markers higher in t-like cells than in b-like cells; compare each column across the rows"})
+    run.write_state("probe.json", {**summary, "readings": readings, "generative_cls_value": generative["cls_value"], "lineage_probe": lineage})
+
+
+def mean_scores(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    pearsons = [r["pearson"] for r in rows if r["pearson"] is not None]
+    maes = [r["mean_absolute_error_bins"] for r in rows]
+    return {"mean_pearson": round(sum(pearsons) / len(pearsons), 4) if pearsons else None, "mean_absolute_error_bins": round(sum(maes) / len(maes), 3)}
 
 
 def stage_baselines(run: Run) -> None:
@@ -487,6 +516,8 @@ def stage_evaluate(run: Run) -> None:
         "adaptation": adapt["adaptation"],
         "adaptation_seconds": adapt["seconds"],
     }
+    if report["max_abs_metric_difference_vs_adapting_process"] != 0.0:
+        raise RuntimeError(f"Evaluation parity failed: the metrics computed by the exported adapter in this fresh process differ from the adapting process's by {report['max_abs_metric_difference_vs_adapting_process']} (accuracy, macro-F1, AUROC on the test split). The export or the base weights changed between Sections 9 and 10; no evaluation report was written. Re-run Section 9, then Section 10.")
     run.write_output(f"{STEM}_evaluation_report.json", report)
     run.write_state("evaluate.json", {"test": {k: test_metrics[k] for k in ("n", "accuracy", "macro_f1", "auroc")}})
     print({"delta_vs_nearest_centroid": report["delta_vs_nearest_centroid"], "delta_vs_majority": report["delta_vs_majority"], "same_as_adapting_process": report["max_abs_metric_difference_vs_adapting_process"] == 0.0})
@@ -632,11 +663,36 @@ def main(argv: list[str] | None = None) -> int:
     error_file.unlink(missing_ok=True)
     try:
         STAGES[args.stage](run)
+    except (ValueError, OSError) as exc:
+        if getattr(exc, "byod_refusal", False):
+            return refuse(run, args.stage, exc, error_file)
+        return failed(exc, error_file)
     except BaseException as exc:  # noqa: BLE001 -- every failure is reported to the kernel with its own message
-        traceback.print_exc()
-        error_file.write_text(json.dumps({"type": type(exc).__name__, "message": str(exc)}), encoding="utf-8")
-        return 1
+        return failed(exc, error_file)
     return 0
+
+
+def failed(exc: BaseException, error_file: Path) -> int:
+    """A genuine failure: full traceback in the stage log, then the kernel raises."""
+    traceback.print_exc()
+    error_file.write_text(json.dumps({"type": type(exc).__name__, "message": str(exc)}), encoding="utf-8")
+    return 1
+
+
+def refuse(run: Run, stage: str, exc: BaseException, error_file: Path) -> int:
+    """A refused input (DAT20): one actionable message, no traceback; earlier outputs stay on disk, marked invalid."""
+    message = str(exc)
+    if stage == "data":
+        run.write_state(INVALIDATED, {"stage": stage, "message": message})
+        stale = sorted(p.name for p in run.out.glob(f"{STEM}_*") if p.name != f"{STEM}_RUN_INVALIDATED.txt")
+        if stale:
+            (run.out / f"{STEM}_RUN_INVALIDATED.txt").write_text(f"The last input was refused: {message}\nThe other {STEM}_* files here are from an earlier run and are NOT the current result. Fix the input and run Section 4 again; a successful Section 4 removes them and this note.\n", encoding="utf-8")
+        print(f"BYOD input refused: {message}")
+        print("Nothing was run on it. To recover: fix the named file (or set USE_BYOD = False) and run this cell again, then the sections after it." + (f" The {len(stale)} files already in outputs/ are from an earlier run; they are kept but marked invalid ({STEM}_RUN_INVALIDATED.txt), and later sections will not run on them." if stale else ""))
+    else:
+        print(f"Skipped: {message}")
+    error_file.write_text(json.dumps({"type": type(exc).__name__, "message": message, "refusal": True}), encoding="utf-8")
+    return REFUSED_EXIT
 
 
 if __name__ == "__main__":

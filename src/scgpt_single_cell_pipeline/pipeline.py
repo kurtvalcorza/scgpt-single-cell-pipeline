@@ -5,7 +5,9 @@ adapter.
 The checkpoint is the scGPT *whole-human* encoder (Cui et al., Nature Methods 2024; 33 million
 cells) as repackaged in safetensors by Therapeutics Data Commons: 12 post-norm transformer layers of
 width 512 with 8 heads, a 60,697-gene vocabulary, a gene-token encoder, a continuous value encoder,
-and the masked-expression decoder. Three things about this row are stated rather than hidden:
+and the masked-expression decoder, plus the original checkpoint's `flag_encoder` and MVC head, which
+the packaging dropped and this repository restores as a derived, digest-pinned fifth manifest entry.
+Three things about this row are stated rather than hidden:
 
 * **The architecture is re-implemented here on plain torch modules.** The Hub repository ships no
   model code (`config.json` declares `model_type: "scgpt"` with no `auto_map`), and the packager's
@@ -15,7 +17,7 @@ and the masked-expression decoder. Three things about this row are stated rather
   It follows the **original** scGPT `model.py` (bowang-lab/scGPT @ `cebd6fae`): the value encoder
   clamps at 512 and applies a ReLU between its two linears, which the PyTDC port omits.
 * **The gene vocabulary is not in the Hub repository.** The packager fetches it from Harvard
-  Dataverse at runtime; this manifest lists it as a fourth entry with that persistent file id as its
+  Dataverse at runtime; this manifest lists it as an entry with that persistent file id as its
   source and its SHA-256, so it is verified like every other file.
 * **Inputs are binned, not raw.** scGPT reads expression as per-cell quantile bins (51 bins, zeros
   stay zero) after total-count normalisation and log1p; the packager's example feeds raw values,
@@ -67,7 +69,9 @@ MAX_SEQ_LEN = 1536
 VOCAB_SIZE = 60697
 SPECIAL_TOKENS = ("<pad>", "<cls>", "<eoc>")
 # scGPT input convention: per-cell quantile binning into N_BINS after normalisation, `<cls>` first
-# with value 0, masked positions carry MASK_VALUE, and the value encoder clamps at VALUE_CLAMP.
+# with value 0, and the value encoder clamps at VALUE_CLAMP. MASK_VALUE (-1) is upstream's fine-tuning
+# MLM convention (DataCollator, tutorials); whole-human was pretrained generatively instead (see
+# predict_masked_generative).
 N_BINS = 51
 TARGET_SUM = 10_000.0
 MASK_VALUE = -1.0
@@ -77,6 +81,32 @@ BINNING_SEED = 42  # seeds the tie-spreading in per-cell quantile binning (see b
 MAX_GENES_PER_CELL = MAX_SEQ_LEN - 1  # one position is the <cls> token
 MAX_CELLS_PER_CALL = 32
 MIN_DETECTED_GENES = 10  # fewer measured genes cannot be binned into a meaningful profile
+
+# The two pretraining heads the TDC packaging dropped: `flag_encoder` (the "generate this gene"
+# embedding) and `mvc_decoder` (masked value from the cell embedding). The generative masked-expression
+# call needs both. They exist only in the original checkpoint, a pickle at the same pinned Hub revision;
+# `tools/derive_pretrain_heads.py` audited it, loaded it once with `weights_only=True` and wrote these
+# four tensors to safetensors. The manifest lists the result as its fifth entry with the original's size
+# and SHA-256; it is fetched from an immutable raw-GitHub commit.
+PRETRAIN_HEADS_NAME = "pretrain_heads.safetensors"
+PRETRAIN_HEADS_TENSORS = {
+    "flag_encoder.weight": (2, EMBSIZE),
+    "mvc_decoder.W.weight": (EMBSIZE, EMBSIZE),
+    "mvc_decoder.gene2query.bias": (EMBSIZE,),
+    "mvc_decoder.gene2query.weight": (EMBSIZE, EMBSIZE),
+}
+PRETRAIN_HEADS_SOURCE = {
+    "path": "scgpt_gh_repo_original_model.bin",
+    "bytes": 207_861_754,
+    "sha256": "ad0252a1971e0cd619b7116dbab3177432236c4537225d54280a2aa7e5fe402a",
+}
+PRETRAIN_HEADS_MIRROR_URL = (
+    "https://raw.githubusercontent.com/kurtvalcorza/scgpt-single-cell-pipeline/"
+    "281d9a8e17025e258f3740f3dccec39134aba12d/weights/scgpt/pretrain_heads.safetensors"
+)
+# `<cls>` input value in the census pretraining script (bowang-lab/scGPT examples/pretrain.py
+# at 4068d67: pad_value -2).
+PRETRAIN_CLS_VALUE = -2.0
 
 
 def _verify_manifest(root: Path, model_id: str, revision: str) -> dict[str, Any]:
@@ -119,6 +149,15 @@ def _hub_download(relative_path: str, root: Path) -> None:
     """Fetch one manifest-listed file: Hub files at the pinned revision, the vocabulary from its
     persistent Dataverse file id with an immutable repository mirror as availability fallback. The
     caller's `verify_snapshot` checks the size and digest afterwards regardless of source."""
+    if relative_path == PRETRAIN_HEADS_NAME:
+        import urllib.request
+
+        request = urllib.request.Request(
+            PRETRAIN_HEADS_MIRROR_URL, headers={"User-Agent": "scgpt-single-cell-pipeline"}
+        )
+        with urllib.request.urlopen(request, timeout=120) as response:
+            (root / PRETRAIN_HEADS_NAME).write_bytes(response.read())
+        return
     if relative_path == VOCAB_NAME:
         import urllib.error
         import urllib.request
@@ -425,6 +464,33 @@ def _pearson(a: Sequence[float], b: Sequence[float]) -> float | None:
     return cov / math.sqrt(va * vb)
 
 
+def _random_masks(
+    encoded: Sequence[Mapping[str, Any]], mask_fraction: float, seed: int
+) -> dict[int, set[int]]:
+    """Seeded masked positions per cell (never `<cls>`), shared by every masked-expression call so the
+    conventions are compared on identical masks."""
+    if not 0.0 < float(mask_fraction) <= 0.5:
+        raise ValueError("mask_fraction must be in (0, 0.5]")
+    import random
+
+    rng = random.Random(seed)
+    mask: dict[int, set[int]] = {}
+    for i, e in enumerate(encoded):
+        positions = list(range(1, len(e["tokens"])))  # never mask <cls>
+        k = max(1, int(round(len(positions) * float(mask_fraction))))
+        mask[i] = set(rng.sample(positions, k))
+    return mask
+
+
+def _bin_scores(truth: Sequence[float], guess: Sequence[float]) -> dict[str, Any]:
+    mae = sum(abs(t - g) for t, g in zip(truth, guess, strict=True)) / len(truth)
+    return {
+        "mean_absolute_error_bins": round(mae, 4),
+        "pearson": (None if (r := _pearson(truth, guess)) is None else round(r, 4)),
+        "mean_predicted_bin": round(sum(guess) / len(guess), 3),
+    }
+
+
 def build_model(config: Mapping[str, Any], vocabulary: GeneVocabulary) -> Any:
     """The scGPT encoder on plain torch modules, named so the pinned checkpoint loads strictly.
 
@@ -481,12 +547,18 @@ def build_model(config: Mapping[str, Any], vocabulary: GeneVocabulary) -> Any:
             )
             self.value_clamp = VALUE_CLAMP
 
-        def forward(self, input_ids: Any, values: Any, padding_mask: Any) -> dict[str, Any]:
-            gene = self.gene_encoder["enc_norm"](self.gene_encoder["embedding"](input_ids))
+        def embed_genes(self, input_ids: Any) -> Any:
+            return self.gene_encoder["enc_norm"](self.gene_encoder["embedding"](input_ids))
+
+        def embed_values(self, values: Any) -> Any:
             v = torch.clamp(values.unsqueeze(-1), max=self.value_clamp)
             v = torch.relu(self.value_encoder["linear1"](v))
             v = self.value_encoder["norm"](self.value_encoder["linear2"](v))
-            v = self.value_encoder["dropout"](v)
+            return self.value_encoder["dropout"](v)
+
+        def forward(self, input_ids: Any, values: Any, padding_mask: Any) -> dict[str, Any]:
+            gene = self.embed_genes(input_ids)
+            v = self.embed_values(values)
             hidden = self.transformer(gene + v, src_key_padding_mask=padding_mask)
             return {"cell_emb": hidden[:, 0], "pred": self.expr_decoder["fc"](hidden).squeeze(-1)}
 
@@ -508,6 +580,7 @@ class ScGPTPipeline:
     classifier_model: Any = None
     weights_dir: Path | None = None
     adaptation: dict[str, Any] = field(default_factory=dict)
+    pretrain_heads: dict[str, Any] | None = None
 
     @classmethod
     def from_pretrained(
@@ -521,7 +594,7 @@ class ScGPTPipeline:
             raise FileNotFoundError(f"no snapshot manifest at {root} and allow_download={allow_download}")
         # Stage and verify before importing model libraries (RTM-001).
         stage_missing_files(root, allow_download=allow_download)
-        verify_snapshot(root)
+        manifest = verify_snapshot(root)
         config = json.loads((root / CONFIG_NAME).read_text(encoding="utf-8"))
         expected = {
             "embsize": (config.get("embsize"), EMBSIZE),
@@ -550,12 +623,22 @@ class ScGPTPipeline:
             state = load_file(str(root / WEIGHTS_NAME))
             model.load_state_dict(state, strict=True)
             del state
+            heads = None
+            if any(entry["path"] == PRETRAIN_HEADS_NAME for entry in manifest["files"]):
+                heads = load_file(str(root / PRETRAIN_HEADS_NAME))
+                shapes = {name: tuple(tensor.shape) for name, tensor in heads.items()}
+                if shapes != PRETRAIN_HEADS_TENSORS:
+                    raise ValueError(
+                        f"{PRETRAIN_HEADS_NAME} holds {shapes}, expected exactly {PRETRAIN_HEADS_TENSORS}"
+                    )
+                heads = {name: tensor.to(resolved_device) for name, tensor in heads.items()}
         model = model.to(resolved_device).eval()
         messages = [f"{w.category.__name__}: {w.message}" for w in caught]
         pipe = cls(
             cls._make_embedder(model, vocabulary, resolved_device), vocabulary, resolved_device, messages
         )
         pipe.model, pipe.config, pipe.weights_dir = model, dict(config), root
+        pipe.pretrain_heads = heads
         return pipe
 
     # -- backends ---------------------------------------------------------------------------------
@@ -650,29 +733,23 @@ class ScGPTPipeline:
         mask_fraction: float = 0.15,
         seed: int = 42,
     ) -> dict[str, Any]:
-        """Masked-expression prediction — scGPT's pretraining objective, run as a functional check.
+        """Masked-expression probe under upstream's fine-tuning MLM convention (exploratory).
 
-        A seeded fraction of each cell's gene positions receives MASK_VALUE; the decoder predicts a
-        bin for every position, and the masked ones are compared with the true bins (mean absolute
-        error and Pearson correlation per cell). A correct re-implementation of the encoder should
-        predict masked bins far better than chance; a wrong one produces noise.
+        A seeded fraction of each cell's gene positions receives MASK_VALUE (-1, the value upstream's
+        DataCollator and fine-tuning tutorials use; whole-human itself was pretrained generatively, see
+        `predict_masked_generative`); the expression decoder predicts a bin for every position, and the
+        masked ones are compared with the true bins (mean absolute error and Pearson correlation per
+        cell). The decoder's predictions sit in a compressed band (about bins 26-33), so this is a probe
+        of what the decoder has learned, not an imputer. Data without co-expression structure, such as
+        the tutorial's code-generated cells, leaves every convention near zero correlation.
         """
         if self.model is None:
             raise RuntimeError("predict_masked requires a pipeline built by from_pretrained")
-        if not 0.0 < float(mask_fraction) <= 0.5:
-            raise ValueError("mask_fraction must be in (0, 0.5]")
-        import random
-
         import torch
 
         checked, ids = _check_cells(cells, names)
-        rng = random.Random(seed)
         pre = [bin_expression(c, self.vocabulary) for c in checked]
-        mask: dict[int, set[int]] = {}
-        for i, e in enumerate(pre):
-            positions = list(range(1, len(e["tokens"])))  # never mask <cls>
-            k = max(1, int(round(len(positions) * float(mask_fraction))))
-            mask[i] = set(rng.sample(positions, k))
+        mask = _random_masks(pre, mask_fraction, seed)
         input_ids, vals, pad, encoded = self._batch(checked, self.vocabulary, self.device, mask)
         with torch.no_grad():
             out = self.model(input_ids, vals, pad)
@@ -698,9 +775,10 @@ class ScGPTPipeline:
             "mask_fraction": float(mask_fraction),
             "mask_value": MASK_VALUE,
             "n_bins": N_BINS,
+            "convention": "fine-tuning MLM: masked genes keep their token and get value -1",
             "note": (
-                "functional check of the re-implemented encoder against scGPT's masked-expression objective; "
-                "bins are per-cell quantiles, so chance-level prediction sits near the mean bin"
+                "exploratory probe, not imputation: bins are per-cell quantiles, and the expression "
+                "decoder's predictions sit in a compressed band (about bins 26-33)"
             ),
             "model_id": MODEL_ID,
             "model_revision": MODEL_REVISION,
@@ -751,6 +829,146 @@ class ScGPTPipeline:
             "true_mean_bin": round(sum(r["true_mean_bin"] for r in rows) / n, 3),
             "genes_requested": len(wanted),
             "mask_value": MASK_VALUE,
+        }
+
+    def _generate(
+        self, tokens: Sequence[int], values: Sequence[float], masked: set[int], cls_value: float
+    ) -> tuple[list[float], list[float]]:
+        """One cell under the generative convention; returns (expression decoder, MVC head) predictions
+        for the masked positions in ascending order."""
+        import torch
+
+        heads = self.pretrain_heads or {}
+        known = [0] + [p for p in range(1, len(tokens)) if p not in masked]
+        generated = sorted(masked)
+        dev = self.device
+        ids_k = torch.tensor([[tokens[p] for p in known]], dtype=torch.long, device=dev)
+        vals_k = torch.tensor(
+            [[cls_value] + [values[p] for p in known[1:]]], dtype=torch.float32, device=dev
+        )
+        ids_g = torch.tensor([[tokens[p] for p in generated]], dtype=torch.long, device=dev)
+        with torch.no_grad():
+            gene_k = self.model.embed_genes(ids_k)
+            gene_g = self.model.embed_genes(ids_g)
+            flag = heads["flag_encoder.weight"][1]
+            x = torch.cat([gene_k + self.model.embed_values(vals_k), gene_g + flag], dim=1)
+            n_k, length = len(known), len(known) + len(generated)
+            blocked = torch.ones((length, length), dtype=torch.bool, device=dev)
+            blocked[:, :n_k] = False  # every position attends to <cls> and the known genes
+            own = torch.arange(n_k, length, device=dev)
+            blocked[own, own] = False  # a generated gene also attends to itself, never to another
+            hidden = self.model.transformer(x, mask=blocked)
+            expr = self.model.expr_decoder["fc"](hidden[:, n_k:]).squeeze(-1)[0]
+            query = torch.sigmoid(
+                torch.nn.functional.linear(
+                    gene_g, heads["mvc_decoder.gene2query.weight"], heads["mvc_decoder.gene2query.bias"]
+                )
+            )
+            mvc = torch.nn.functional.linear(query, heads["mvc_decoder.W.weight"])[0] @ hidden[0, 0]
+        return expr.float().cpu().tolist(), mvc.float().cpu().tolist()
+
+    def _require_heads(self, caller: str) -> None:
+        if self.model is None:
+            raise RuntimeError(f"{caller} requires a pipeline built by from_pretrained")
+        if self.pretrain_heads is None:
+            raise RuntimeError(
+                f"{caller} needs {PRETRAIN_HEADS_NAME} (flag_encoder + mvc_decoder), which this snapshot's "
+                "manifest does not list; re-stage the snapshot with the current manifest"
+            )
+
+    def predict_masked_generative(
+        self,
+        cells: Sequence[Mapping[str, float]],
+        *,
+        names: Sequence[str] | None = None,
+        mask_fraction: float = 0.15,
+        seed: int = 42,
+        cls_value: float = PRETRAIN_CLS_VALUE,
+    ) -> dict[str, Any]:
+        """Masked-expression prediction under the generative convention whole-human was pretrained with.
+
+        The convention is inferred from upstream's census pretraining script (`--training-tasks` defaults
+        to `both`) and from the `flag_encoder` the original checkpoint carries; the command line used for
+        the released checkpoint is not published. The masked genes enter as gene embedding + flag
+        embedding with **no value**; each attends to `<cls>`, the known genes and itself, and the known
+        genes never see it. Two heads read the result, on the same masks as `predict_masked`: the
+        expression decoder (the same `expr_decoder` the MLM probe uses) at the generated positions, and
+        the MVC head, which predicts each masked gene's bin from the `<cls>` cell embedding and the
+        gene's own embedding. Both are exploratory probes, not imputation.
+        """
+        self._require_heads("predict_masked_generative")
+        checked, ids = _check_cells(cells, names)
+        encoded = [bin_expression(c, self.vocabulary) for c in checked]
+        mask = _random_masks(encoded, mask_fraction, seed)
+        rows = []
+        for i, (cid, e) in enumerate(zip(ids, encoded, strict=True)):
+            positions = sorted(mask[i])
+            truth = [e["values"][p] for p in positions]
+            expr, mvc = self._generate(e["tokens"], e["values"], mask[i], float(cls_value))
+            rows.append(
+                {
+                    "id": cid,
+                    "masked_positions": len(positions),
+                    "mean_true_bin": round(sum(truth) / len(truth), 3),
+                    "expression_decoder": _bin_scores(truth, expr),
+                    "mvc_head": _bin_scores(truth, mvc),
+                }
+            )
+        return {
+            "cells": rows,
+            "mask_fraction": float(mask_fraction),
+            "cls_value": float(cls_value),
+            "n_bins": N_BINS,
+            "convention": (
+                "generative (inferred from the census pretraining script default and the checkpoint's "
+                "flag_encoder): masked genes enter as gene embedding + flag, with no value"
+            ),
+            "heads_source": (
+                f"{PRETRAIN_HEADS_NAME}, derived from {PRETRAIN_HEADS_SOURCE['path']} at {MODEL_REVISION}"
+            ),
+            "model_id": MODEL_ID,
+            "model_revision": MODEL_REVISION,
+        }
+
+    def predict_masked_genes_generative(
+        self,
+        cells: Sequence[Mapping[str, float]],
+        genes: Sequence[str],
+        *,
+        names: Sequence[str] | None = None,
+        cls_value: float = PRETRAIN_CLS_VALUE,
+    ) -> dict[str, Any]:
+        """`predict_masked_genes` under the generative convention, read by both heads."""
+        self._require_heads("predict_masked_genes_generative")
+        if isinstance(genes, str) or not genes:
+            raise ValueError("genes must be a non-empty list of gene symbols")
+        checked, ids = _check_cells(cells, names)
+        wanted = {str(g) for g in genes}
+        rows = []
+        for cid, cell in zip(ids, checked, strict=True):
+            e = bin_expression(cell, self.vocabulary)
+            masked = {k + 1 for k, symbol in enumerate(e["gene_symbols"]) if symbol in wanted}
+            if not masked:
+                raise ValueError(f"{cid}: none of the requested genes is detected in this cell")
+            expr, mvc = self._generate(e["tokens"], e["values"], masked, float(cls_value))
+            truth = [e["values"][p] for p in sorted(masked)]
+            rows.append(
+                {
+                    "id": cid,
+                    "masked_genes": len(masked),
+                    "expression_decoder_mean_bin": round(sum(expr) / len(expr), 3),
+                    "mvc_head_mean_bin": round(sum(mvc) / len(mvc), 3),
+                    "true_mean_bin": round(sum(truth) / len(truth), 3),
+                }
+            )
+        n = len(rows)
+        return {
+            "cells": rows,
+            "expression_decoder_mean_bin": round(sum(r["expression_decoder_mean_bin"] for r in rows) / n, 3),
+            "mvc_head_mean_bin": round(sum(r["mvc_head_mean_bin"] for r in rows) / n, 3),
+            "true_mean_bin": round(sum(r["true_mean_bin"] for r in rows) / n, 3),
+            "genes_requested": len(wanted),
+            "cls_value": float(cls_value),
         }
 
     def nearest_centroid_evaluate(

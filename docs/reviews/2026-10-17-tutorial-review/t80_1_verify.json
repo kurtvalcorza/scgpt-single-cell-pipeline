@@ -1,0 +1,25 @@
+{
+  "torch": "2.14.1+cpu",
+  "load_seconds": 0.52,
+  "heads_loaded": [
+    "flag_encoder.weight",
+    "mvc_decoder.W.weight",
+    "mvc_decoder.gene2query.bias",
+    "mvc_decoder.gene2query.weight"
+  ],
+  "reviewer_synthetic_32": {
+    "mlm": 0.0867,
+    "generative_cls0": 0.0809,
+    "mvc_cls0": 0.0798,
+    "generative_cls0_band": [
+      26.219,
+      30.859
+    ],
+    "generative_cls-2": 0.0648,
+    "mvc_cls-2": 0.1509,
+    "generative_cls-2_band": [
+      26.206,
+      30.617
+    ]
+  }
+}
