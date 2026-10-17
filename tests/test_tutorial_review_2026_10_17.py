@@ -219,3 +219,13 @@ def test_r2_upload_failure_is_refused_and_invalidates_the_run(tmp_path) -> None:
     assert out.startswith("BYOD input refused: The upload was cancelled or empty")
     assert (tmp_path / "run" / "state" / STAGES.INVALIDATED).is_file()
     assert (tmp_path / "outputs" / f"{STAGES.STEM}_dataset.csv").is_file()
+
+
+def test_requote_probe_figures_come_from_the_hosted_t4_run() -> None:
+    """Section 7 quotes the 2026-10-17 hosted T4 run (REL13), not the earlier CPU figures."""
+    text = "\n".join(_cells())
+    assert "not yet re-run on a GPU" not in text and "local CPU run of this revision" not in text
+    for value in ("0.0045", "0.0393", "0.0926", "0.0345", "0.0274", "0.1354"):
+        assert value in text, value
+    for cpu_value in ("0.0149", "0.0346", "0.1055", "12.60 (MLM)", "12.55 (generative)"):
+        assert cpu_value not in text, cpu_value

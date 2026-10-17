@@ -152,9 +152,8 @@ The T4 MLM value 0.0045 equals the 2026-10-10 T4 record at `8d35011`, and the T4
 (28.858 / 27.038 / 28.368 / 32.022) equal the CPU section's values, so the MLM gap is the same cross-environment
 difference recorded above. The generative and MVC default-seed values differ from CPU by 0.005 and 0.013, and every
 T4 five-seed mean lies inside the CPU five-seed range (and the reverse); the ordering MVC > MLM, generative is the same
-on both. All readings are descriptive; the heads are not ranked. The notebook's prose still quotes the CPU figures as
-"not yet re-run on a GPU"; regenerating that sentence with these T4 figures is a follow-up (no notebook edit in this
-record).
+on both. All readings are descriptive; the heads are not ranked. The notebook's Section 7 prose was later requoted
+from these T4 figures (REL13: this run); the CPU figures stay disclosed above.
 
 ## Current status
 

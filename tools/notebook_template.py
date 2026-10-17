@@ -187,8 +187,8 @@ TEMPLATE = {
                 "an expectation; **What to notice** follows each stage; a collapsed **Check your reasoning** answer follows each "
                 "checkpoint. The sample answers quote the recorded Colab CLI T4 run of this workflow at revision `8d35011` "
                 "(2026-10-10); your numbers should match them closely on the default path. Section 7's generative and MVC "
-                "readings are newer than that run: their numbers come from a local CPU run of this revision, recorded in "
-                "`docs/release-verification.md` and labelled where they appear."
+                "readings are newer than that run: they quote the later recorded Colab CLI T4 run at revision `5d95ece` "
+                "(2026-10-17), recorded in `docs/release-verification.md` and labelled where they appear."
             ),
             (
                 "## The task: Input → Model → Output\n\n"
@@ -390,11 +390,12 @@ TEMPLATE = {
         },
         {
             "md": (
-                "**What to notice:** the three mean Pearson rows (pipeline MLM call 0.0045 in the recorded Colab CLI run; on the "
-                "same 8 cells and masks, a local CPU run of this revision gave 0.0149 for the MLM call, 0.0346 for the generative "
-                "call and 0.1055 for the MVC head, recorded in `docs/release-verification.md` and not yet re-run on a GPU; the "
-                "CPU/GPU gap for the MLM call is an observed cross-environment difference whose cause was not isolated), the "
-                "gene-prior and shuffled-context rows beside them, the per-cell values, and the 5-seed ranges. The expression "
+                "**What to notice:** the three mean Pearson rows (REL13: the hosted Colab T4 run of 2026-10-17 at revision "
+                "`5d95ece`, recorded in `docs/release-verification.md`, gave 0.0045 for the MLM call, 0.0393 for the "
+                "generative call and 0.0926 for the MVC head on the default seed, and five-seed means of 0.0345, 0.0274 and "
+                "0.1354; a local CPU run gives slightly different values, an observed cross-environment difference whose cause "
+                "was not isolated, compared in the same file), the gene-prior and shuffled-context rows beside them, the "
+                "per-cell values, and the 5-seed ranges. The expression "
                 "decoder's predicted bins sit in a narrow band (27.04 to 32.02 in the recorded run) in the lineage rows.\n\n"
                 "<details>\n<summary>Check your reasoning (open after running)</summary>\n\n"
                 "None of them predicts hidden bins well here, and the probe doesn't say why. " + "These synthetic profiles differ substantially from measured cells; the low correlations here don't diagnose a broken decoder, and the cause hasn't been isolated. " + "On 32 "
@@ -403,8 +404,8 @@ TEMPLATE = {
                 "scored 0.31, 0.37 (0.39 with `<cls>` value 0) and 0.55, but a gene prior that ignores the cell scored 0.58, "
                 "and with another cell's context the MVC head still scored 0.48: much of the correlation can be accounted for "
                 "by gene identity alone (CPU runs in `docs/reviews/2026-10-17-tutorial-review/`; not re-run "
-                "here). " + "This tutorial doesn't validate imputation; on these sampled cells and masks the expression decoder's bin MAE didn't clearly beat a constant baseline that predicts every masked gene as the mean bin of the cell's unmasked genes: " + "on these 8 cells the MAE was 12.60 (MLM) and 12.55 (generative) "
-                "against 12.61 for that baseline, and on the 32 PBMC cells 11.81 and 12.00 against 11.82. A DIMER profile should "
+                "here). " + "This tutorial doesn't validate imputation; on these sampled cells and masks the expression decoder's bin MAE didn't clearly beat a constant baseline that predicts every masked gene as the mean bin of the cell's unmasked genes: " + "on these 8 cells (the same 2026-10-17 T4 run) the MAE was 12.61 (MLM) and 12.53 "
+                "(generative) against 12.61 for that baseline, and on the 32 PBMC cells 11.81 and 12.00 against 11.82. A DIMER profile should "
                 "expose embeddings and classification, with this probe as a descriptive check. Section 8 shows the *frozen "
                 "embeddings* separate the lineages with no training at all. Real PBMC cells may overlap scGPT's pretraining "
                 "corpus (see the overlap note in the introduction).\n\n"
