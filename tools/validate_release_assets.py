@@ -40,6 +40,8 @@ KNOWN_SHAS: frozenset[str] = frozenset(
     {
         "cebd6fae655b9c585a4807daa3ac31bb764f06b4",
         "677560540f84664db00af8e03a924c65f0ca4e7a",
+        # the repository commit serving pretrain_heads.safetensors from raw.githubusercontent.com
+        "281d9a8e17025e258f3740f3dccec39134aba12d",
     }
 )
 # Documents that must name the model id and the immutable revision.
@@ -102,7 +104,8 @@ NOTEBOOKS = {
             "wide_manifest = P.validate_inputs([wide], vocab)",
             "result = pipe.embed(counts_of(rows), names=ids_of(rows))",
             '"gene_order_invariance": "PASS" if order_diff == 0.0 else "FAIL"',
-            "masked = pipe.predict_masked(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=data[\"seed\"])",
+            "seeds = [data[\"seed\"] + k for k in range(PROBE_SEEDS)]",
+            "masked = pipe.predict_masked(counts_of(rows), names=ids_of(rows), mask_fraction=0.15, seed=seed)",
             "probe = pipe.predict_masked_genes(cells_of, list(markers))",
             "centroid = pipe.nearest_centroid_evaluate(train, test, classes=classes)",
             "majority = P.majority_baseline(train, test, classes)",
@@ -148,7 +151,7 @@ NOTEBOOKS = {
             "representations",
             "no positional encoding",
             "Dataverse",
-            "not a usable imputer",
+            "doesn't validate imputation",
             "split by that grouping",
             "the default task is easy on purpose",
             "p ≈ 0.16",
@@ -163,7 +166,7 @@ NOTEBOOKS = {
 # Specification 2.0; see docs/release-verification.md for the release gate.
 # ---------------------------------------------------------------------------
 
-NOTEBOOK_SPEC = "2.2"
+NOTEBOOK_SPEC = "2.5"
 ALLOWED_PROFILES = {"E2E", "ARTIFACT-INFERENCE", "TASK-INFERENCE", "MULTI-CAPABILITY", "SMOKE"}
 STATUS_TOKENS = ("Candidate", "Release-grade")
 PLACEHOLDER = re.compile(r"\b(TODO|TBD|FIXME)\b|Insert text here|Tooltip:", re.I)
@@ -400,9 +403,10 @@ def validate_identity_consistency() -> None:
 WEIGHT_DOCS = ("README.md", "MODEL_CARD.md", "docs/WEIGHTS.md")
 EXTERNAL_WEIGHT_BYTES: dict[int, str] = {
     1_589: "upstream .gitattributes of tdc/scGPT at acf749f (not staged)",
-    207_861_754: "upstream scgpt_gh_repo_original_model.bin of tdc/scGPT at acf749f (not staged)",
+    207_861_754: "upstream scgpt_gh_repo_original_model.bin of tdc/scGPT at acf749f (not staged; source of pretrain_heads.safetensors)",
 }
 EXTERNAL_WEIGHT_DIGESTS: dict[str, str] = {
+    "ad0252a1971e0cd619b7116dbab3177432236c4537225d54280a2aa7e5fe402a": "upstream scgpt_gh_repo_original_model.bin at acf749f (not staged; source of pretrain_heads.safetensors)",
     "0175d29e942817fc71ecbc68dad5e3056fec772083388bcd66e3e6785408a30c": "scGPT fine-tune adapter.safetensors (6,317,552 bytes) from the build smoke run",
 }
 _DIGEST = re.compile(r"(?<![0-9a-fA-F])[0-9a-f]{64}(?![0-9a-fA-F])")

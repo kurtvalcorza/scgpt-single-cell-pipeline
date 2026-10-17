@@ -26,7 +26,27 @@
       "sha256": "ee2b2c90158eedb97c2318e49abaaed0a02c6fdf7e3f7ca6a821906413c4d2a4",
       "source": "https://dataverse.harvard.edu/api/access/datafile/10809431",
       "note": "TDC `scgpt_vocab` (gene symbol -> token id, 60,697 entries); not in the Hub repository, fetched from Harvard Dataverse by persistent file id with an immutable raw-GitHub mirror fallback, then digest-verified"
+    },
+    {
+      "path": "pretrain_heads.safetensors",
+      "bytes": 2103944,
+      "sha256": "4c839eeb06a2c1c4d1101ee1b28934f8cb8119066480d16478eb52e79550702d",
+      "source": "https://raw.githubusercontent.com/kurtvalcorza/scgpt-single-cell-pipeline/281d9a8e17025e258f3740f3dccec39134aba12d/weights/scgpt/pretrain_heads.safetensors",
+      "derived_from": {
+        "modelId": "tdc/scGPT",
+        "revision": "acf749f35bf5c0b00633838f02588272ed0d9911",
+        "path": "scgpt_gh_repo_original_model.bin",
+        "bytes": 207861754,
+        "sha256": "ad0252a1971e0cd619b7116dbab3177432236c4537225d54280a2aa7e5fe402a"
+      },
+      "tensors": [
+        "flag_encoder.weight",
+        "mvc_decoder.W.weight",
+        "mvc_decoder.gene2query.bias",
+        "mvc_decoder.gene2query.weight"
+      ],
+      "note": "the original checkpoint's flag_encoder and mvc_decoder (dropped from model.safetensors), needed only by the generative masked-expression call; extracted once by tools/derive_pretrain_heads.py (size and SHA-256 check, static pickle audit, torch.load(weights_only=True)) and committed; the pickle is never loaded by the pipeline or the notebook"
     }
   ],
-  "totalBytes": 204555393
+  "totalBytes": 206659337
 }

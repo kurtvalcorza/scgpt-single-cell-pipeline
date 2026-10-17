@@ -9,6 +9,8 @@ outputs/
 
 # Model weights are pulled locally; only small config/tokenizer files are committable
 weights/**/*.safetensors
+# The 2 MB pretraining heads derived from the original checkpoint are committed (docs/WEIGHTS.md)
+!weights/scgpt/pretrain_heads.safetensors
 weights/**/*.ckpt
 weights/**/*.bin
 weights/**/*.pt

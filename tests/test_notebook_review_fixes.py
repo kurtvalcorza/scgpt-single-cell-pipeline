@@ -257,9 +257,10 @@ def test_m2_byod_path_works_outside_colab_and_empty_path_is_named(tmp_path, monk
     ns, calls = _kernel(tmp_path)
     exec(compile(_set(_set(cell, "USE_BYOD", True), "BYOD_PATH", "/d/cells.csv"), "<s4>", "exec"), ns)
     assert calls[0] == ("data", {"use_byod": True, "byod_path": "/d/cells.csv", "val_fraction": 0.2, "test_fraction": 0.25, "seed": 42, "inference_cells": 6})
-    ns, calls = _kernel(tmp_path)
-    with pytest.raises(RuntimeError, match="BYOD_PATH is empty, and the upload dialog exists only in Google Colab"):
-        exec(compile(_set(cell, "USE_BYOD", True), "<s4>", "exec"), ns)
+    ns, calls = _kernel(tmp_path)  # T80 round 2: refused by the data stage (one message + invalidation), not raised
+    exec(compile(_set(cell, "USE_BYOD", True), "<s4>", "exec"), ns)
+    assert calls[0][0] == "data" and calls[0][1]["byod_path"] == ""
+    assert "BYOD_PATH is empty, and the upload dialog exists only in Google Colab" in calls[0][1]["byod_refusal"]
     ns, calls = _kernel(tmp_path)
     exec(compile(cell, "<s4>", "exec"), ns)
     assert calls[0][1]["use_byod"] is False and calls[0][1]["byod_path"] == ""
@@ -270,9 +271,9 @@ def test_m2_upload_is_guarded(tmp_path, queue, message) -> None:
     cell = _set(_cell_with("USE_BYOD = False  # @param"), "USE_BYOD", True)
     with _colab(queue) as files:
         ns, calls = _kernel(tmp_path)
-        with pytest.raises((RuntimeError, ValueError), match=message):
-            exec(compile(cell, "<s4>", "exec"), ns)
-        assert files.calls == 1 and calls == []
+        exec(compile(cell, "<s4>", "exec"), ns)  # T80 round 2: routed to the data stage's refusal path
+        assert files.calls == 1 and len(calls) == 1 and calls[0][0] == "data"
+        assert message in calls[0][1]["byod_refusal"] and calls[0][1]["byod_path"] == ""
 
 
 def test_m2_byod_inference_cells_are_held_back_before_the_split(tmp_path) -> None:

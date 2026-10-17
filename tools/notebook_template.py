@@ -1,4 +1,4 @@
-"""Per-repository template for tools/build_notebook.py /3 (NOTEBOOK_SPEC 2.2 §4 standalone, §25.13 isolated environment).
+"""Per-repository template for tools/build_notebook.py /3 (NOTEBOOK_SPEC 2.5 §4 standalone, §25.13 isolated environment).
 
 The generator writes the infrastructure cells (runtime check, carrier, isolated install + stage runner, snapshot
 staging) from repository files; this template holds the learner-facing prose, the guided layer and the learner cells.
@@ -7,13 +7,16 @@ isolated, hash-locked environment, so nothing is installed into the notebook ker
 
 The workflow: the pinned scGPT snapshot (weights, config and the Dataverse-sourced vocabulary) is digest-verified, a
 synthetic marker-programme dataset built from real gene symbols is validated and split, cells are binned the way scGPT
-expects, cell embeddings and the masked-expression objective are probed, a zero-training nearest-centroid baseline and
+expects, cell embeddings and an exploratory masked-expression probe are run, a zero-training nearest-centroid baseline and
 two trivial baselines are measured, a bounded AdamW fine-tuning runs, and the adapter is exported and rebuilt in fresh
 processes for the held-out evaluation and the reload-parity check.
 """
 # ruff: noqa: E501  -- markdown prose and code-cell text are kept on single lines for readable rendering
 
 REPO = "scgpt-single-cell-pipeline"
+
+NOTICE = '> **⚠️ Notice.** For research, training and evaluation only. Not validated for production, clinical, diagnostic or safety-critical use: this notebook is not a medical device, and nothing it outputs is for clinical or diagnostic use. Running this notebook downloads third-party model weights and a gene vocabulary under their own licenses (see the model card) and uses compute on your own Colab or Kaggle account. Data you bring stays in your runtime, and you are responsible for having the right to use it. Results here are tutorial evidence, not benchmarks. Everything is provided "as is", without warranty of any kind. To the maximum extent permitted by law, the maintainers and the DIMER platform accept no liability for its use.\n\n'
+OVERLAP_NOTE = '**Pretraining overlap (DAT9).** scGPT whole-human was pretrained on about 33 million normal human cells from CELLxGENE Census release 2023-05-08, which includes blood [3]. The default sample is generated in code, so it cannot be part of that corpus. The public PBMC result quoted from the build record (10x Genomics `pbmc3k`) and any public blood or PBMC dataset you bring through BYOD may overlap the pretraining corpus; that overlap was not audited, so good separation on public data may overstate how well the model transfers to cells it has never seen.'
 
 BADGES = [
     (
@@ -58,7 +61,7 @@ TEMPLATE = {
     "disk_gib": {"weights": 0.25, "environment": 8.0},
     "runtime_modules": ["torch", "safetensors", "numpy"],
     "install_flags": ["--only-binary", ":all:"],
-    "extra_hosts": "Harvard Dataverse (`dataverse.harvard.edu`) for the 1.3 MB gene vocabulary, which the Hub repository does not ship, with an immutable raw-GitHub mirror (`raw.githubusercontent.com`) of the same digest-pinned bytes used only when Dataverse is unavailable",
+    "extra_hosts": "Harvard Dataverse (`dataverse.harvard.edu`) for the 1.3 MB gene vocabulary, which the Hub repository does not ship, with an immutable raw-GitHub mirror (`raw.githubusercontent.com`) of the same digest-pinned bytes used only when Dataverse is unavailable; and `raw.githubusercontent.com` at an immutable commit for " + "the 2 MB pretraining heads derived from the original checkpoint",
     "stem": "scgpt_single_cell",
     "notebook_name": "scgpt_single_cell_colab.ipynb",
     "profile": "E2E",
@@ -67,18 +70,20 @@ TEMPLATE = {
     "run_all": (
         "Selecting **Run all** in a fresh Linux x86_64 runtime builds an isolated Python environment from the carried "
         "hash-locked requirements (torch, safetensors, numpy, huggingface-hub — no transformers, no PyTDC) without touching "
-        "the notebook kernel's own packages, stages and digest-verifies the pinned scGPT snapshot (4 files, ~205 MB: config, "
+        "the notebook kernel's own packages, stages and digest-verifies the pinned scGPT snapshot (5 files, ~207 MB: config, "
         "weights and README from the Hub, the gene vocabulary from its persistent Harvard Dataverse file id with an immutable "
-        "exact-byte mirror fallback), rebuilds the encoder on plain torch modules and loads the weights strictly, generates a "
+        "exact-byte mirror fallback, and the 2 MB pretraining heads (`pretrain_heads.safetensors`) derived from the original checkpoint, from an immutable "
+        "raw-GitHub commit), rebuilds the encoder on plain torch modules and loads the weights strictly, generates a "
         "deterministic 64-cell dataset in code from two real PBMC marker programmes (no download), validates the cells and "
         "splits them into stratified train/validation/test sets, shows how a cell becomes (gene, bin) tokens, computes `<cls>` "
-        "cell embeddings and checks they are reproducible and gene-order invariant, probes the masked-expression objective, "
+        "cell embeddings and checks they are reproducible and invariant to the input's gene order, runs a descriptive masked-expression "
+        "probe three ways on the same masks with a gene-prior baseline and a shuffled-context control, "
         "measures a zero-training nearest-centroid baseline on the frozen embeddings plus majority-class and library-size "
         "baselines, runs a bounded AdamW fine-tuning of a classification head and the last encoder layer, exports the adapter, "
         "rebuilds it in a fresh process to evaluate accuracy, macro-F1 and AUROC on the held-out test split, classifies six "
         "freshly generated cells with a reload-parity check against the adapting process, and writes a provenance record. No "
         "repository clone, DIMER worker or service, credential, upload dialog, configuration edit or runtime restart is "
-        "required (NOTEBOOK_SPEC 2.2 §5). After the one-time environment build, the model stages take about a minute on CPU."
+        "required (NOTEBOOK_SPEC 2.5 §5). After the one-time environment build, the model stages take about a minute on CPU."
     ),
     "byod": (
         "After the tutorial workflow completes, set `USE_BYOD = True` in Section 4 and either set `BYOD_PATH` to a file in this "
@@ -87,7 +92,12 @@ TEMPLATE = {
         "{id, counts, label} records. Before the split, up to `INFERENCE_CELLS` of your cells (default 6) are held back for "
         "Section 11, so the new-cell inference runs on cells that took no part in training, monitoring or evaluation. Your "
         "cells pass through the same validation, stratified split, baselines, adaptation, held-out evaluation, export and "
-        "reload-parity stages as the synthetic sample; every refusal names the file and the rule. The schema, the gene-symbol "
+        "reload-parity stages as the synthetic sample; a refusal prints one message naming the file and the rule, keeps the "
+        "earlier outputs but marks them invalid, and later sections wait until Section 4 succeeds; a cancelled or multi-file "
+        "upload, or a missing upload dialog, is refused the same way. BYOD results are **cell-level holdout** results: the "
+        "split is random over cells, so cells from one donor or batch can sit in both training and test, and this workflow "
+        "cannot evaluate transfer to unseen donors or batches. A public blood or PBMC "
+        "dataset may overlap scGPT's pretraining corpus (see the overlap note below). The schema, the gene-symbol "
         "convention and the ceilings are stated in the Prerequisites and in Section 4. Uploaded files stay inside this "
         "runtime. BYOD is optional and never part of the default path."
     ),
@@ -95,33 +105,44 @@ TEMPLATE = {
     "badges": BADGES,
     "capability": "single-cell expression embeddings, masked-expression prediction and bounded cell-state classification fine-tuning",
     "intro": (
-        "scGPT is a single-cell foundation model: a 12-layer transformer encoder pretrained with a masked-expression objective "
-        "on 33 million human cells (Cui et al., Nature Methods 2024). A cell enters the model as a set of **(gene token, "
+        "scGPT is a single-cell foundation model: a 12-layer transformer encoder pretrained on 33 million normal human cells "
+        "[1]. The cited upstream census pretraining script trains generatively by default [4]: the genes to be predicted "
+        "enter as a gene token plus a \"generate this\" flag, with no value, and the model predicts their expression from "
+        "the rest of the cell. The original checkpoint's `flag_encoder` and MVC head are compatible with that, but the "
+        "released checkpoint's exact training configuration is unverified. A cell enters the model as a set of **(gene token, "
         "expression bin)** pairs — every detected gene's expression is quantile-binned within the cell into 51 levels — with a "
         "`<cls>` token whose output is the cell embedding. There is no positional encoding, so the order in which genes are "
-        "listed does not matter, which this notebook checks.\n\n"
-        "The checkpoint here is the *whole-human* encoder repackaged in safetensors by Therapeutics Data Commons. The Hub "
+        "listed does not matter: this pipeline also sorts the tokens before encoding, and the notebook checks that the input's "
+        "gene order changes nothing.\n\n"
+        "The checkpoint here is the *whole-human* encoder repackaged in safetensors by Therapeutics Data Commons [2]. The Hub "
         "repository ships no model code, so this pipeline rebuilds the encoder on plain torch modules whose parameter names "
         "match the checkpoint exactly, and the gene vocabulary — which is not in the Hub repository — is fetched from its "
         "persistent Dataverse file id or its immutable exact-byte mirror and digest-verified like everything else. Section 3 "
-        "stages it; Section 7 probes what the pretrained decoder can and cannot do.\n\n"
+        "stages it, together with the two pretraining heads the packaging dropped (derived once from the original checkpoint, "
+        "never loaded as a pickle); Section 7 runs an exploratory masked-expression probe.\n\n"
         "The tutorial dataset is synthetic but built from **real lineage programmes**: 24 canonical T-lymphocyte marker genes "
         "and 24 B-lymphocyte marker genes, plus 300 background genes from the vocabulary. A `t-like` cell places the T "
         "programme high and the B programme low; a `b-like` cell does the reverse; every cell is scaled to the same library "
-        "size and expresses the same 348 genes, so total counts and gene detection carry no signal by construction.\n\n"
+        "size and expresses the same 348 genes, so total counts and gene detection carry no signal by construction. The "
+        "background is random, so these profiles differ substantially from measured cells.\n\n"
+        + OVERLAP_NOTE + "\n\n"
         "**One thing to know before you start: the default task is easy on purpose.** The two programmes are swapped wholesale, "
         "so the frozen embedding already separates the classes with no training at all — the zero-training baseline in "
         "Section 8 scored 1.0 in the recorded run. The fine-tuning in Section 9 therefore cannot show a gain on this data; "
-        "what it demonstrates is the adaptation contract (bounded training, an independent test split, an exported adapter "
+        "what it demonstrates is the adaptation contract (bounded training, a held-out test split, an exported adapter "
         "that reloads with identical predictions). Bring your own harder labels (BYOD) to see whether adaptation helps."
     ),
     "learning_objectives": (
         "by the end of this notebook you will be able to —\n\n"
         "1. **Explain** how scGPT turns an expression profile into (gene, bin) tokens and why binning makes it scale-invariant (Section 5).\n"
-        "2. **Verify** that `<cls>` embeddings are reproducible and gene-order invariant, and **describe** their shared component (Section 6).\n"
-        "3. **Interpret** an honest negative result: the shipped masked-expression decoder does not use lineage context (Section 7).\n"
+        "2. **Verify** that `<cls>` embeddings are reproducible and unaffected by the input's gene order (a preprocessing check), and **describe** their shared component (Section 6).\n"
+        "3. **Interpret** a descriptive masked-expression probe read three ways on the same masks (the pipeline's MLM call, "
+        "the generative call and its MVC head) against a gene-prior baseline and a shuffled-context control, and **explain** "
+        "why low correlations on synthetic profiles don't diagnose a broken decoder (Section 7). The generative call follows "
+        "the generative convention in the cited upstream pretraining script; the released checkpoint's exact training "
+        "configuration is unverified.\n"
         "4. **Compare** a fine-tuned head with a zero-training nearest-centroid baseline and two trivial baselines, and say when fine-tuning has nothing to add (Sections 8, 10).\n"
-        "5. **Evaluate** accuracy, macro-F1 and AUROC on an independent test split, computed by the exported adapter in a fresh process (Section 10).\n"
+        "5. **Evaluate** accuracy, macro-F1 and AUROC on a held-out test split, computed by the exported adapter in a fresh process (Section 10).\n"
         "6. **Verify** that the exported adapter reproduces the adapting process's predictions, and **predict**, run and **explain** the effect of `TRAINABLE_LAYERS` in an optional activity (Sections 11, 13)."
     ),
     "exclusions": (
@@ -140,7 +161,8 @@ TEMPLATE = {
     "guided": {
         "opening": [
             (
-                "## How to use this notebook\n\n"
+                NOTICE
+                + "## How to use this notebook\n\n"
                 "**Who this notebook is for.** Learners who can run cells in a hosted notebook and read short Python, who know what "
                 "a single-cell expression profile is, and who want to see a single-cell foundation model used end to end: how a "
                 "cell becomes tokens, what its embeddings do and do not carry, how to judge a fine-tune against baselines that "
@@ -163,8 +185,10 @@ TEMPLATE = {
                 "produced and how to read it. **[Engineering]** — reproducibility, provenance and packaging.\n\n"
                 "**Predict, then check.** Before Sections 7, 8 and 10 a **Predict before running** prompt asks you to commit to "
                 "an expectation; **What to notice** follows each stage; a collapsed **Check your reasoning** answer follows each "
-                "checkpoint. The sample answers quote the recorded Kaggle T4 run of this workflow; your numbers should match "
-                "them closely on the default path."
+                "checkpoint. The sample answers quote the recorded Colab CLI T4 run of this workflow at revision `8d35011` "
+                "(2026-10-10); your numbers should match them closely on the default path. Section 7's generative and MVC "
+                "readings are newer than that run: they quote the later recorded Colab CLI T4 run at revision `5d95ece` "
+                "(2026-10-17), recorded in `docs/release-verification.md` and labelled where they appear."
             ),
             (
                 "## The task: Input → Model → Output\n\n"
@@ -215,10 +239,12 @@ TEMPLATE = {
         ],
         "infrastructure": {
             "weights": (
-                "**What to notice (Section 3):** `fetched` lists `model.safetensors` and `vocab.json` on a first run. The "
-                "vocabulary comes from Harvard Dataverse; if Dataverse is down (it returned HTTP 504 during the recorded run), "
-                "the stage prints `vocabulary_source` with the mirror URL and accepts the mirror's bytes only because they match "
-                "the pinned SHA-256. `verified_files: 4`."
+                "**What to notice (Section 3):** `fetched` lists `model.safetensors`, `vocab.json` and `pretrain_heads.safetensors` "
+                "on a first run. The vocabulary comes from Harvard Dataverse; if Dataverse is down (it returned HTTP 504 "
+                "during a 2026-09-18 Kaggle run of an earlier revision, though not in the recorded Colab run), the stage prints "
+                "`vocabulary_source` with the mirror URL and accepts the mirror's bytes only because they match the pinned "
+                "SHA-256. The pretraining heads come from an immutable repository commit and are checked the same way. "
+                "`verified_files: 5`."
             ),
         },
     },
@@ -246,24 +272,26 @@ TEMPLATE = {
                 "SEED = 42  # @param {{type:\"integer\"}}\n"
                 "INFERENCE_CELLS = 6  # @param {{type:\"integer\"}}\n\n"
                 "def upload_one(what, field):\n"
+                "    \"\"\"(path, None) for one uploaded file, or ('', reason) when no single file arrived.\"\"\"\n"
                 "    try:\n"
                 "        from google.colab import files\n"
                 "    except ImportError:\n"
-                "        raise RuntimeError(f'{{field}} is empty, and the upload dialog exists only in Google Colab: set {{field}} to {{what}} in this runtime.') from None\n"
+                "        return '', f'{{field}} is empty, and the upload dialog exists only in Google Colab: set {{field}} to {{what}} in this runtime.'\n"
                 "    uploaded = files.upload()\n"
                 "    if not uploaded:\n"
-                "        raise RuntimeError(f'The upload was cancelled or empty: no file was received. Run this cell again and choose {{what}}, or set {{field}}.')\n"
+                "        return '', f'The upload was cancelled or empty: no file was received. Run this cell again and choose {{what}}, or set {{field}}.'\n"
                 "    if len(uploaded) != 1:\n"
-                "        raise ValueError(f'Upload exactly one file ({{what}}); got {{sorted(uploaded)}}.')\n"
+                "        return '', f'Upload exactly one file ({{what}}); got {{sorted(uploaded)}}.'\n"
                 "    upload_name, payload = next(iter(uploaded.items()))\n"
                 "    path = ROOT / 'inputs' / Path(upload_name).name\n"
                 "    path.parent.mkdir(parents=True, exist_ok=True)\n"
                 "    path.write_bytes(payload)\n"
-                "    return str(path)\n\n"
-                "byod_path = ''\n"
+                "    return str(path), None\n\n"
+                "byod_path, byod_refusal = '', None\n"
                 "if USE_BYOD:\n"
-                "    byod_path = BYOD_PATH or upload_one('one labelled .csv, .json or .jsonl file of cells', 'BYOD_PATH')\n"
-                "run_stage('data', use_byod=USE_BYOD, byod_path=byod_path, val_fraction=VAL_FRACTION, test_fraction=TEST_FRACTION, seed=SEED, inference_cells=INFERENCE_CELLS)"
+                "    byod_path, byod_refusal = (BYOD_PATH, None) if BYOD_PATH else upload_one('one labelled .csv, .json or .jsonl file of cells', 'BYOD_PATH')\n"
+                "# an upload that did not deliver one file is refused by the data stage like any other BYOD refusal\n"
+                "run_stage('data', use_byod=USE_BYOD, byod_path=byod_path, val_fraction=VAL_FRACTION, test_fraction=TEST_FRACTION, seed=SEED, inference_cells=INFERENCE_CELLS, **({{'byod_refusal': byod_refusal}} if byod_refusal else {{}}))"
             ),
         },
         {
@@ -314,8 +342,9 @@ TEMPLATE = {
                 "representations — they carry no label and no metric of their own; a downstream labelled task is what gives "
                 "them meaning. The stage embeds eight validation cells, writes them to `outputs/{stem}_embeddings.csv`, and "
                 "prints a verdict for three properties: the same batch twice gives identical vectors; **shuffling the order of "
-                "a cell's genes changes nothing** — tokens are ranked before encoding and scGPT has no positional encoding, so "
-                "the difference must be exactly zero; and embedding one cell alone versus inside a batch differs only by float "
+                "the input mapping changes nothing** — a preprocessing check: this pipeline sorts tokens before encoding, so "
+                "the difference must be exactly zero (it does not test the encoder's own permutation invariance, which follows "
+                "from scGPT having no positional encoding); and embedding one cell alone versus inside a batch differs only by float "
                 "accumulation order (bounded at 1e-4, observed around 1e-6).\n\n"
                 "It also prints the geometry a reader should know about: raw `<cls>` vectors of unrelated cells have cosine "
                 "similarity around 0.95 (a large shared component), so within- and between-class cosines are shown after "
@@ -331,30 +360,55 @@ TEMPLATE = {
         },
         {
             "md": (
-                "## 7. The masked-expression objective, probed honestly · [Concept]\n\n"
-                "scGPT was pretrained to predict the bins of masked genes from the rest of the cell, and the checkpoint carries "
-                "that decoder. `pipe.predict_masked` masks a seeded 15 % of each cell's gene positions with the training-time "
-                "mask value (−1) and reports, per cell, the mean absolute error in bins and the Pearson correlation between "
-                "predicted and true bins. A second probe asks the question a biologist would: mask the T-cell markers in a "
-                "`t-like` cell and in a `b-like` cell — does the decoder predict them higher where the rest of the cell says "
-                "\"T lymphocyte\"? (With BYOD the lineage probe is skipped, and the stage says why: your labels need not be "
-                "those lineages.)\n\n"
-                "**Predict before running:** the encoder learned lineage structure from 33 million cells. Will its decoder "
-                "predict masked T-cell markers higher in `t-like` cells than in `b-like` cells?"
+                "## 7. An exploratory masked-expression probe, read three ways · [Concept]\n\n"
+                "scGPT learned to predict the expression of hidden genes from the rest of the cell. This section hides a seeded "
+                "15 % of each cell's genes and reads the prediction three ways, **on the same masks**, reporting per cell the "
+                "mean absolute error in bins and the Pearson correlation between predicted and true bins:\n\n"
+                "1. **Pipeline MLM call** (`pipe.predict_masked`): a hidden gene keeps its token and gets the value −1, the "
+                "masking convention of upstream's *fine-tuning* code; the expression decoder reads every position.\n"
+                "2. **Generative call** (`pipe.predict_masked_generative`): " + "the generative convention in the cited upstream pretraining script; the released checkpoint's exact training configuration is unverified (no command line "
+                "was published [4]; the checkpoint's `flag_encoder` is compatible with it). A hidden gene enters as its token plus a \"generate this\" flag, with **no value**; it "
+                "sees the known genes and itself, and the known genes never see it. The same expression decoder reads it.\n"
+                "3. **MVC head** (same call): the pretraining head that predicts each hidden gene's value from the `<cls>` cell "
+                "embedding and the gene's own embedding. The TDC packaging dropped it; Section 3 staged it from the original "
+                "checkpoint.\n\n"
+                "A second probe asks the question a biologist would: mask the T-cell markers in a `t-like` cell and in a "
+                "`b-like` cell — does each reading predict them higher where the rest of the cell says \"T lymphocyte\"? "
+                "(With BYOD the lineage probe is skipped, and the stage says why: your labels need not be those lineages.) "
+                "Two references sit beside the readings, on the same masks: a **gene prior** (each masked gene predicted as its "
+                "mean bin over the training split, gene identity only) and a **shuffled-context control** (the same masked "
+                "genes placed into another cell's context). **Pearson** here is the correlation between predicted and true "
+                "bins across the masked genes of one cell, averaged over the cells where it is defined; the stage prints the "
+                "per-cell values and the valid-cell count, then repeats the masks over 5 seeds and reports the mean, the "
+                "range and paired differences between readings. Masked genes within a cell are not independent replicates, "
+                "so all of this is descriptive: the numbers are reconstruction associations, not proof that a head recovers "
+                "cell-specific expression from context, and they don't rank the heads.\n\n"
+                "**Predict before running:** these cells are code-generated: two swapped marker programmes over a random "
+                "background. Which of the three readings, if any, will predict hidden bins well here?"
             ),
             "code": "run_stage('probe')",
         },
         {
             "md": (
-                "**What to notice:** the mean Pearson (0.0045 in the recorded run) and the lineage rows, whose predicted bins "
-                "sit in a narrow band whatever the context.\n\n"
+                "**What to notice:** the three mean Pearson rows (REL13: the hosted Colab T4 run of 2026-10-17 at revision "
+                "`5d95ece`, recorded in `docs/release-verification.md`, gave 0.0045 for the MLM call, 0.0393 for the "
+                "generative call and 0.0926 for the MVC head on the default seed, and five-seed means of 0.0345, 0.0274 and "
+                "0.1354; a local CPU run gives slightly different values, an observed cross-environment difference whose cause "
+                "was not isolated, compared in the same file), the gene-prior and shuffled-context rows beside them, the "
+                "per-cell values, and the 5-seed ranges. The expression "
+                "decoder's predicted bins sit in a narrow band (27.04 to 32.02 in the recorded run) in the lineage rows.\n\n"
                 "<details>\n<summary>Check your reasoning (open after running)</summary>\n\n"
-                "No. On this checkpoint the decoder's predictions sit around bins 28–32 whatever the context, so the "
-                "masked-prediction correlation is near zero (0.0045 recorded) and the lineage probe shows no conditioning. That "
-                "is a property of the shipped decoder, not of the encoder: Section 8 shows the *frozen embeddings* separate the "
-                "lineages with no training at all, and the same encoder separated real B, T and monocyte cells from a public "
-                "PBMC dataset at build time (recorded in the model card). A DIMER profile should therefore expose embeddings and "
-                "classification, not imputation.\n\n"
+                "None of them predicts hidden bins well here, and the probe doesn't say why. " + "These synthetic profiles differ substantially from measured cells; the low correlations here don't diagnose a broken decoder, and the cause hasn't been isolated. " + "On 32 "
+                "such cells the three readings scored 0.087 (MLM call), 0.065 (generative call, `<cls>` value -2) and 0.151 "
+                "(MVC head). On 32 real PBMC cells (10x Genomics `pbmc3k`, 15 % masks, seed 42) the same calls of this API "
+                "scored 0.31, 0.37 (0.39 with `<cls>` value 0) and 0.55, but a gene prior that ignores the cell scored 0.58, "
+                "and with another cell's context the MVC head still scored 0.48: much of the correlation can be accounted for "
+                "by gene identity alone (CPU runs in `docs/reviews/2026-10-17-tutorial-review/`; not re-run "
+                "here). " + "This tutorial doesn't validate imputation; on these sampled cells and masks the expression decoder's bin MAE didn't clearly beat a constant baseline that predicts every masked gene as the mean bin of the cell's unmasked genes: " + "on these 8 cells (the same 2026-10-17 T4 run) the MAE was 12.61 (MLM) and 12.53 "
+                "(generative) against 12.61 for that baseline, and on the 32 PBMC cells 11.81 and 12.00 against 11.82. A DIMER profile should "
+                "expose embeddings and classification, with this probe as a descriptive check. Section 8 shows the *frozen "
+                "embeddings* separate the lineages with no training at all. Real PBMC cells may overlap scGPT's pretraining "
+                "corpus (see the overlap note in the introduction).\n\n"
                 "</details>"
             ),
         },
@@ -380,10 +434,12 @@ TEMPLATE = {
                 "**Checkpoint:** the library-size baseline scored 0.625 accuracy and 0.72 AUROC on a dataset built so that "
                 "library size carries no signal. Is that signal?\n\n"
                 "<details>\n<summary>Check your reasoning (open after answering)</summary>\n\n"
-                "No. Rounding leaves library sizes between 19,986 and 20,012 — ±12 counts around 20,000 — and with 16 test cells "
-                "an AUROC of 0.72 is not distinguishable from 0.5: the review's permutation test gave a two-sided p ≈ 0.16. On "
-                "your own data, read this baseline first: if total counts separate your labels, the labels track sequencing "
-                "depth, and any model will exploit that for the wrong reason.\n\n"
+                "Not on this evidence. Rounding leaves library sizes between 19,986 and 20,012 — ±12 counts around 20,000 — and "
+                "with 16 test cells an AUROC of 0.72 is compatible with sampling variation: a permutation test in the 2026-10-05 "
+                "notebook review gave a two-sided p ≈ 0.16 (`docs/reviews/2026-10-05-notebook-review/`, probe P3; not re-run "
+                "here). That is insufficient evidence of an association, not proof that there is none. On your own data, read "
+                "this baseline first: if total counts separate your labels, investigate before trusting any model, because a "
+                "depth–label association can reflect technical confounding, biology, or both.\n\n"
                 "</details>"
             ),
         },
@@ -412,7 +468,7 @@ TEMPLATE = {
         {
             "md": (
                 "**What to notice:** `trainable_parameters` (1,579,010 of the total in the recorded run: the head plus one "
-                "encoder layer), the time (about 7 s on a T4), and the loss falling across four epochs while validation "
+                "encoder layer), the time (9.12 s on a T4 in the recorded Colab CLI run), and the loss falling across four epochs while validation "
                 "accuracy stays at 1.0."
             ),
         },
@@ -424,7 +480,8 @@ TEMPLATE = {
                 "`macro_f1`, per-class precision/recall/F1 with support, and `auroc`. The **test split** was never used for "
                 "training or monitoring, so its numbers are the independent evidence. These are tutorial metrics on a synthetic "
                 "16-cell split: one holdout, no dispersion estimate. The report — with all three baselines, the deltas, an "
-                "interpretation line and the difference from the adapting process's own scores (it should be 0) — is written to "
+                "interpretation line and the comparison with the adapting process (every test cell's label and full score vector, "
+                "within 1e-5, plus agreement of the three metrics; either mismatch stops the run) — is written to "
                 "`outputs/{stem}_evaluation_report.json`.\n\n"
                 "**Predict before running:** given Section 8, what will `delta_vs_nearest_centroid` be on the default data?"
             ),
@@ -433,7 +490,8 @@ TEMPLATE = {
         {
             "md": (
                 "**What to notice:** test `accuracy`, `macro_f1` and `auroc` (1.0 / 1.0 / 1.0 recorded), "
-                "`same_as_adapting_process: True`, and the `interpretation` line.\n\n"
+                "`same_as_adapting_process: True`, `test_labels_equal: True` with a `test_max_score_difference` within 1e-5, and the "
+                "`interpretation` line.\n\n"
                 "<details>\n<summary>Check your reasoning (open after running)</summary>\n\n"
                 "Zero. The zero-training centroid rule was already perfect, so the adapted head can at best tie it, and the "
                 "interpretation line says `saturated`. A perfect score here says the adaptation contract works — training is "
@@ -544,21 +602,24 @@ TEMPLATE = {
         "independent split, computed by the exported adapter in a fresh process. That is the claim: scGPT's `<cls>` embedding "
         "carries lineage structure it learned from 33 million real cells, it reads that structure out of nothing but a binned "
         "expression ranking, and the adaptation contract works on top of it. The default task is saturated, so it cannot show "
-        "that adaptation *helps*. The masked-expression decoder, by contrast, is not a usable imputer as shipped, and the "
-        "notebook says so with numbers rather than skipping the question.\n\n"
+        "that adaptation *helps*. The masked-expression probe is descriptive. " + "These synthetic profiles differ substantially from measured cells; the low correlations here don't diagnose a broken decoder, and the cause hasn't been isolated. " + "On real PBMC "
+        "cells a gene prior that ignores the cell matched or beat every head, so its correlations are reconstruction "
+        "associations, not proof of contextual recovery. " + "This tutorial doesn't validate imputation; on these sampled cells and masks the expression decoder's bin MAE didn't clearly beat a constant baseline that predicts every masked gene as the mean bin of the cell's unmasked genes" + " (Section 7 gives the numbers).\n\n"
+        "Public single-cell data deserves one more caution. " + OVERLAP_NOTE + "\n\n"
         "The test split has 16 synthetic cells, the metrics come from one seeded holdout with no dispersion estimate, and the "
         "classes are a generator rule with real marker genes in it rather than measured cells. So a perfect score says the "
         "contract works, not that scGPT annotates cell types at any published accuracy, integrates batches, or predicts "
         "perturbations — none of which this repository exercises.\n\n"
         "Three things to carry to real data. **Symbols:** the vocabulary is HGNC symbols, case-insensitively matched; Ensembl ids "
         "are unknown and dropped, and the input manifest tells you how many genes survived — read it before you trust an "
-        "embedding. **Splits:** cells from one donor, plate or batch belong together; split by that grouping, not at random. "
-        "**Depth:** read the library-size baseline first — if total counts predict your labels, so will any model, for the wrong "
-        "reason.\n\n"
+        "embedding. **Splits:** cells from one donor, plate or batch belong together, and a real evaluation should split by "
+        "that grouping, not at random. This workflow cannot: its BYOD results are cell-level holdout results, so they cannot "
+        "show transfer to unseen donors or batches. **Depth:** read the library-size baseline first — if total counts predict "
+        "your labels, investigate whether that reflects technical confounding, biology, or both.\n\n"
         "Successful execution proves that the recorded repository revision's package, carried in this standalone notebook, can "
         "acquire and digest-verify the pinned model **and a vocabulary from a second source**, rebuild the encoder without any "
         "upstream code, validate the demonstrated dataset contract, execute bounded fine-tuning, evaluate the exported adapter "
-        "against a zero-training baseline and two trivial ones on an independent split, reproduce its predictions in a fresh "
+        "against a zero-training baseline and two trivial ones on a held-out split, reproduce its predictions in a fresh "
         "process, and emit the shown machine-readable artifacts — without the repository being reachable. It does **not** "
         "establish benchmark superiority, production fitness, or biological validity.\n\n"
         "## Conclusion · [Evaluation practice]\n\n"
@@ -566,9 +627,11 @@ TEMPLATE = {
         "what the baselines imply about the fine-tuned head's perfect test score; and what you would need before using an "
         "adapter like this on real cells.\n\n"
         "<details>\n<summary>Sample conclusion (open after writing yours)</summary>\n\n"
-        "The `<cls>` embeddings were reproducible and exactly gene-order invariant, and the frozen encoder alone separated the "
-        "lineages (nearest centroid 1.0), while the shipped decoder ignored lineage context (Pearson 0.0045). Because the "
-        "zero-training rule was already perfect and library size sat at chance (0.625, AUROC 0.72 on 16 cells, p ≈ 0.16), the "
+        "The `<cls>` embeddings were reproducible and unaffected by the input's gene order, and the frozen encoder alone "
+        "separated the lineages (nearest centroid 1.0), while the masked-expression probe sat near zero correlation under "
+        "all three readings (0.0045 for the MLM call) on synthetic profiles, which doesn't diagnose why. Because the "
+        "zero-training rule was already perfect and the library-size baseline gave insufficient evidence of an association "
+        "(0.625, AUROC 0.72 on 16 cells; p ≈ 0.16 from the 2026-10-05 review, not re-run here), the "
         "fine-tuned head's 1.0 shows that the adaptation contract works — including an adapter that reloads with identical "
         "predictions — not that fine-tuning added anything. Before using such an adapter on real cells I would need real, "
         "donor-grouped splits, a task where the centroid baseline is not perfect, several seeds for a dispersion estimate, and a "
@@ -578,13 +641,21 @@ TEMPLATE = {
         "and read the nearest-centroid and library-size baselines before the adapted number; change `SEED` and see how much "
         "the library-size baseline moves.\n\n"
         "## References\n\n"
+        "IEEE style.\n\n"
+        "[1] H. Cui, C. Wang, H. Maan, K. Pang, F. Luo, N. Duan, and B. Wang, \"scGPT: toward building a foundation model for "
+        "single-cell multi-omics using generative AI,\" *Nature Methods*, vol. 21, pp. 1470–1480, 2024, "
+        "doi: 10.1038/s41592-024-02201-0.\n\n"
+        "[2] Therapeutics Data Commons, \"tdc/scGPT: scGPT whole-human in safetensors,\" Hugging Face, revision "
+        "{MODEL_REVISION}, 2024. [Online]. Available: https://huggingface.co/{MODEL_ID}\n\n"
+        "[3] B. Wang Lab, \"scGPT pretraining data: CELLxGENE Census release 2023-05-08,\" GitHub, bowang-lab/scGPT, commit "
+        "cebd6fae655b9c585a4807daa3ac31bb764f06b4. [Online]. Available: "
+        "https://github.com/bowang-lab/scGPT/tree/cebd6fae655b9c585a4807daa3ac31bb764f06b4/data/cellxgene\n\n"
+        "[4] B. Wang Lab, \"examples/pretrain.py (census pretraining script; `--training-tasks` defaults to `both`),\" GitHub, "
+        "bowang-lab/scGPT, commit 4068d67. [Online]. Available: "
+        "https://github.com/bowang-lab/scGPT/blob/4068d67/examples/pretrain.py\n\n"
+        "Project links:\n\n"
         "- Repository README: https://github.com/kurtvalcorza/scgpt-single-cell-pipeline/blob/main/README.md\n"
         "- Repository model card: https://github.com/kurtvalcorza/scgpt-single-cell-pipeline/blob/main/MODEL_CARD.md\n"
-        "- Upstream model (safetensors packaging): https://huggingface.co/{MODEL_ID}\n"
-        "- Upstream code: https://github.com/bowang-lab/scGPT\n"
-        "- Cui, H., Wang, C., Maan, H., Pang, K., Luo, F., Duan, N., Wang, B. (2024). scGPT: toward building a foundation model "
-        "for single-cell multi-omics using generative AI. Nature Methods 21, 1470–1480. https://doi.org/10.1038/s41592-024-02201-0\n"
-        "- Velez-Arce, A., et al. (2024). Signals in the Cells: Multimodal and Contextualized Machine Learning Foundations for "
-        "Therapeutics. NeurIPS 2024 Workshop on AI for New Drug Modalities (the TDC packaging)."
+        "- Upstream code: https://github.com/bowang-lab/scGPT"
     ),
 }

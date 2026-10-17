@@ -1,0 +1,300 @@
+{
+  "torch": "2.14.1+cpu",
+  "cells": 32,
+  "default_seed_42": {
+    "mlm": {
+      "mean_pearson": 0.314,
+      "mean_absolute_error_bins": 11.814,
+      "valid_cells": 32
+    },
+    "generative": {
+      "mean_pearson": 0.3712,
+      "mean_absolute_error_bins": 12.0,
+      "valid_cells": 32
+    },
+    "mvc": {
+      "mean_pearson": 0.551,
+      "mean_absolute_error_bins": 10.711,
+      "valid_cells": 32
+    },
+    "gene_prior": {
+      "mean_pearson": 0.5756,
+      "mean_absolute_error_bins": 9.151,
+      "valid_cells": 32
+    },
+    "constant": {
+      "mean_pearson": null,
+      "mean_absolute_error_bins": 11.815,
+      "valid_cells": 0
+    },
+    "mlm_shuffled_context": {
+      "mean_pearson": 0.2992,
+      "mean_absolute_error_bins": 11.838,
+      "valid_cells": 32
+    },
+    "generative_shuffled_context": {
+      "mean_pearson": 0.3599,
+      "mean_absolute_error_bins": 12.043,
+      "valid_cells": 32
+    },
+    "mvc_shuffled_context": {
+      "mean_pearson": 0.4782,
+      "mean_absolute_error_bins": 11.074,
+      "valid_cells": 32
+    }
+  },
+  "generative_cls0_seed_42": {
+    "mean_pearson": 0.3898,
+    "mean_absolute_error_bins": 11.938,
+    "valid_cells": 32
+  },
+  "mvc_cls0_seed_42": {
+    "mean_pearson": 0.5286,
+    "mean_absolute_error_bins": 11.673,
+    "valid_cells": 32
+  },
+  "seeds_42_46": {
+    "seeds": 5,
+    "columns": {
+      "mlm": {
+        "mean_pearson": {
+          "mean": 0.3539,
+          "range": [
+            0.314,
+            0.3726
+          ]
+        },
+        "mean_absolute_error_bins": {
+          "mean": 11.8736,
+          "range": [
+            11.808,
+            11.962
+          ]
+        },
+        "valid_cells": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      },
+      "generative": {
+        "mean_pearson": {
+          "mean": 0.4008,
+          "range": [
+            0.3712,
+            0.4235
+          ]
+        },
+        "mean_absolute_error_bins": {
+          "mean": 12.0122,
+          "range": [
+            11.905,
+            12.09
+          ]
+        },
+        "valid_cells": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      },
+      "mvc": {
+        "mean_pearson": {
+          "mean": 0.5556,
+          "range": [
+            0.5473,
+            0.5624
+          ]
+        },
+        "mean_absolute_error_bins": {
+          "mean": 10.6566,
+          "range": [
+            10.548,
+            10.749
+          ]
+        },
+        "valid_cells": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      },
+      "gene_prior": {
+        "mean_pearson": {
+          "mean": 0.5857,
+          "range": [
+            0.5756,
+            0.5953
+          ]
+        },
+        "mean_absolute_error_bins": {
+          "mean": 9.111,
+          "range": [
+            9.069,
+            9.182
+          ]
+        },
+        "valid_cells": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      },
+      "constant": {
+        "mean_pearson": {
+          "mean": null,
+          "range": null
+        },
+        "mean_absolute_error_bins": {
+          "mean": 11.9646,
+          "range": [
+            11.815,
+            12.114
+          ]
+        },
+        "valid_cells": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "mlm_shuffled_context": {
+        "mean_pearson": {
+          "mean": 0.3253,
+          "range": [
+            0.2992,
+            0.3421
+          ]
+        },
+        "mean_absolute_error_bins": {
+          "mean": 11.8944,
+          "range": [
+            11.838,
+            11.959
+          ]
+        },
+        "valid_cells": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      },
+      "generative_shuffled_context": {
+        "mean_pearson": {
+          "mean": 0.3754,
+          "range": [
+            0.3599,
+            0.3883
+          ]
+        },
+        "mean_absolute_error_bins": {
+          "mean": 12.042,
+          "range": [
+            11.97,
+            12.099
+          ]
+        },
+        "valid_cells": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      },
+      "mvc_shuffled_context": {
+        "mean_pearson": {
+          "mean": 0.4854,
+          "range": [
+            0.471,
+            0.509
+          ]
+        },
+        "mean_absolute_error_bins": {
+          "mean": 11.0144,
+          "range": [
+            10.937,
+            11.074
+          ]
+        },
+        "valid_cells": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ]
+      }
+    },
+    "paired_pearson_differences": {
+      "generative - mlm": {
+        "mean": 0.047,
+        "range": [
+          0.0319,
+          0.0572
+        ]
+      },
+      "mvc - mlm": {
+        "mean": 0.2017,
+        "range": [
+          0.1747,
+          0.237
+        ]
+      },
+      "mlm - gene_prior": {
+        "mean": -0.2319,
+        "range": [
+          -0.2617,
+          -0.2103
+        ]
+      },
+      "generative - gene_prior": {
+        "mean": -0.1849,
+        "range": [
+          -0.2044,
+          -0.1594
+        ]
+      },
+      "mvc - gene_prior": {
+        "mean": -0.0302,
+        "range": [
+          -0.0356,
+          -0.0246
+        ]
+      },
+      "mlm - mlm_shuffled_context": {
+        "mean": 0.0286,
+        "range": [
+          0.0148,
+          0.0469
+        ]
+      },
+      "generative - generative_shuffled_context": {
+        "mean": 0.0255,
+        "range": [
+          0.0113,
+          0.0453
+        ]
+      },
+      "mvc - mvc_shuffled_context": {
+        "mean": 0.0702,
+        "range": [
+          0.0534,
+          0.088
+        ]
+      }
+    }
+  }
+}

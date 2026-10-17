@@ -1,0 +1,46 @@
+{
+  "vocab": {
+    "tdc_entries": 60697,
+    "census_entries": 60694,
+    "common": 60694,
+    "same_id_for_common": 60694,
+    "only_tdc": [
+      "<cls>",
+      "<eoc>",
+      "<pad>"
+    ],
+    "only_census": []
+  },
+  "n_t": 12,
+  "n_b": 12,
+  "lineage_real_pbmc": {
+    "T cells / T markers": {
+      "gen_expr_decoder_mean_bin": 29.89,
+      "gen_mvc_mean_bin": 35.18,
+      "pipeline_mlm_predicted_mean_bin": 28.569,
+      "pipeline_mlm_true_mean_bin": 31.464,
+      "pipeline_mlm_n_cells": 12
+    },
+    "T cells / B markers": {
+      "gen_expr_decoder_mean_bin": 29.14,
+      "gen_mvc_mean_bin": 30.38,
+      "pipeline_mlm_predicted_mean_bin": 28.209,
+      "pipeline_mlm_true_mean_bin": 30.342,
+      "pipeline_mlm_n_cells": 12
+    },
+    "B cells / T markers": {
+      "gen_expr_decoder_mean_bin": 28.94,
+      "gen_mvc_mean_bin": 31.31,
+      "pipeline_mlm_predicted_mean_bin": 27.898,
+      "pipeline_mlm_true_mean_bin": 32.583,
+      "pipeline_mlm_n_cells": 12
+    },
+    "B cells / B markers": {
+      "gen_expr_decoder_mean_bin": 30.32,
+      "gen_mvc_mean_bin": 37.25,
+      "pipeline_mlm_predicted_mean_bin": 28.04,
+      "pipeline_mlm_true_mean_bin": 38.309,
+      "pipeline_mlm_n_cells": 12
+    }
+  }
+}
