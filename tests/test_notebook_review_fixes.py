@@ -266,7 +266,7 @@ def test_m2_byod_path_works_outside_colab_and_empty_path_is_named(tmp_path, monk
     assert calls[0][1]["use_byod"] is False and calls[0][1]["byod_path"] == ""
 
 
-@pytest.mark.parametrize(("queue", "message"), [([{}], "cancelled or empty"), ([{"a.csv": b"x", "b.csv": b"y"}], "Upload exactly one file")], ids=["cancelled", "two-files"])
+@pytest.mark.parametrize(("queue", "message"), [([{}], "cancelled or empty"), ([{"a.csv": b"x", "b.csv": b"y"}], "a.csv, b.csv: upload exactly one file")], ids=["cancelled", "two-files"])
 def test_m2_upload_is_guarded(tmp_path, queue, message) -> None:
     cell = _set(_cell_with("USE_BYOD = False  # @param"), "USE_BYOD", True)
     with _colab(queue) as files:
@@ -336,7 +336,7 @@ def test_m2_refusals_name_the_file_and_the_rule(tmp_path, name, content, message
 
 def test_m2_missing_byod_file_names_the_field(tmp_path) -> None:
     run = _run(tmp_path, {"use_byod": True, "byod_path": str(tmp_path / "absent.csv")})
-    with pytest.raises(FileNotFoundError, match="BYOD_PATH .*absent.csv.* is not a file"):
+    with pytest.raises(FileNotFoundError, match="absent.csv: BYOD_PATH is not a file"):
         _quiet(STAGES.stage_data, run)
 
 
