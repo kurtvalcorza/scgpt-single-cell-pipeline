@@ -1,0 +1,69 @@
+{
+  "repo": "scgpt-single-cell-pipeline",
+  "sha": "fca89d51cc30ffb1a322545d28982bbf334391b4",
+  "notebook": "tutorials/scgpt_single_cell_colab.ipynb",
+  "blob": "13c5c586aa000aa88514dc0aed9f3b559409ac73",
+  "gpu": "T4",
+  "session": "suite-scgpt-fca89d5-a079",
+  "started_utc": "2026-10-29T20:34:52+00:00",
+  "runner": "Colab CLI `colab exec -f` on a fresh session (not a browser Run all)",
+  "overrides": [
+    {
+      "name": "USE_BYOD",
+      "from": "False",
+      "to": "True"
+    },
+    {
+      "name": "BYOD_PATH",
+      "from": "''",
+      "to": "'/etc/hostname'"
+    }
+  ],
+  "run_copy_blob": "6833b580f52db10af04d351c6baa7f19aa9eb93c",
+  "run_copy_sha256": "a94f652afab2118548504e582b22df81acdf8469d0c7c0434a80efead8aea3df",
+  "run_copy_note": "refusal run: the run copy is the committed notebook with the listed assignment overrides, cut immediately after the refusal cell and re-serialised (nbformat layout); input_unchanged compares against that copy",
+  "truncated_after_cell": "scgpt_single_cell-15",
+  "refusal_cell_ref": "scgpt_single_cell-15",
+  "refusal_cell_index": 5,
+  "cells_dropped": 28,
+  "code_cells_dropped": 9,
+  "original_sha256": "b822e3fe94779abab8cd4fd561d176f74cbd88737b30171a3093dbef8c5cf21f",
+  "status": "[suite-scgpt-fca89d5-a079] gpu-t4-s-ass1c0-2456h0wb874tp | Hardware: T4 | Shape: Standard | Variant: GPU | Status: IDLE",
+  "exec_exit_code": 0,
+  "stopped": true,
+  "stop_verified": true,
+  "wall_s": 89.1,
+  "input_unchanged": true,
+  "executed_file": "scgpt_single_cell_colab_fca89d5_colab-cli-t4_output.ipynb",
+  "log_cells": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "log_total": 5,
+  "code_cells": 5,
+  "executed_cells": 5,
+  "errors": [
+    {
+      "cell": "scgpt_single_cell-15",
+      "ename": "StageRefusal",
+      "evalue": "hostname: BYOD must be a genes-as-columns .csv, a .json array or a .jsonl file of {id, counts, label} records (export an AnnData .h5ad to CSV first). Nothing was run on it. To recover: fix the named file (or set USE_BYOD = False) and run this cell again, then the sections after it."
+    }
+  ],
+  "execution_counts": [],
+  "sequential": null,
+  "executed_sha256": "3ad1ad46425f890ba61a0e768c78dff47a00efdcf97f9118f5152660abe477b3",
+  "log_sequential_complete": true,
+  "mode": "expect_refusal",
+  "refusal_line": "Refused: hostname: BYOD must be a genes-as-columns .csv, a .json array or a .jsonl file of {id, counts, label} records (export an AnnData .h5ad to CSV first). Nothing was run on it. To recover: fix the named file (or set USE_BYOD = False) and run this cell again, then the sections after it.",
+  "halting_cell_index": 5,
+  "halting_cell_id": "scgpt_single_cell-15",
+  "error_cells": [
+    5
+  ],
+  "refusal_fail_reasons": [],
+  "refusal_ok": true,
+  "verdict": "PASS"
+}

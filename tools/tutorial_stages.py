@@ -250,7 +250,8 @@ def stage_data(run: Run) -> None:
         # Validate before touching anything on disk: a refusal leaves the earlier outputs in place (marked invalid by main).
         path = Path(opts.get("byod_path") or "")
         if not str(path) or not path.is_file():
-            raise refusal(FileNotFoundError(f"BYOD_PATH {str(path)!r} is not a file in this runtime: upload the file or correct the path."))
+            label = str(opts.get("byod_path") or "").strip() or "(no file)"  # DAT19: the refusal names the file
+            raise refusal(FileNotFoundError(f"{label}: BYOD_PATH is not a file in this runtime: upload the file or correct the path."))
         if path.suffix.lower() not in (".csv", ".json", ".jsonl"):
             raise refusal(ValueError(f"{path.name}: BYOD must be a genes-as-columns .csv, a .json array or a .jsonl file of {{id, counts, label}} records (export an AnnData .h5ad to CSV first)."))
         try:
@@ -784,11 +785,12 @@ def refuse(run: Run, stage: str, exc: BaseException, error_file: Path) -> int:
         stale = sorted(p.name for p in run.out.glob(f"{STEM}_*") if p.name != f"{STEM}_RUN_INVALIDATED.txt")
         if stale:
             (run.out / f"{STEM}_RUN_INVALIDATED.txt").write_text(f"The last input was refused: {message}\nThe other {STEM}_* files here are from an earlier run and are NOT the current result. Fix the input and run Section 4 again; a successful Section 4 removes them and this note.\n", encoding="utf-8")
-        print(f"BYOD input refused: {message}")
-        print("Nothing was run on it. To recover: fix the named file (or set USE_BYOD = False) and run this cell again, then the sections after it." + (f" The {len(stale)} files already in outputs/ are from an earlier run; they are kept but marked invalid ({STEM}_RUN_INVALIDATED.txt), and later sections will not run on them." if stale else ""))
-    else:
-        print(f"Skipped: {message}")
-    error_file.write_text(json.dumps({"type": type(exc).__name__, "message": message, "refusal": True}), encoding="utf-8")
+        # The kernel raises this as one `Refused: <file>: <reason>` line (DAT20); printing it here would show it twice.
+        message = message.rstrip(".") + ". Nothing was run on it. To recover: fix the named file (or set USE_BYOD = False) and run this cell again, then the sections after it." + (f" The {len(stale)} files already in outputs/ are from an earlier run; they are kept but marked invalid ({STEM}_RUN_INVALIDATED.txt), and later sections will not run on them." if stale else "")
+        record = {"type": type(exc).__name__, "message": message, "refusal": True}
+    else:  # a later stage that will not run on the refused input: the kernel shows `Skipped: <message>`
+        record = {"type": type(exc).__name__, "message": message, "refusal": True, "not_run": True}
+    error_file.write_text(json.dumps(record), encoding="utf-8")
     return REFUSED_EXIT
 
 

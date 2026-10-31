@@ -149,13 +149,16 @@ def test_t80_6_refusal_keeps_outputs_invalidates_the_run_and_shows_no_traceback(
     bad.write_text("id,label\n", encoding="utf-8")
     code, out, err = _main(tmp_path, "data", {"use_byod": True, "byod_path": str(bad)})
     assert code == STAGES.REFUSED_EXIT and "Traceback" not in out + err
-    assert out.count("BYOD input refused: cells.txt: BYOD must be a genes-as-columns .csv") == 1
-    assert "run this cell again" in out and "marked invalid" in out
+    assert "Refused" not in out  # DAT20: the kernel raises the one line; the stage does not print it too
     assert dataset.is_file() and (tmp_path / "outputs" / f"{STAGES.STEM}_RUN_INVALIDATED.txt").is_file()
     error = json.loads((tmp_path / "run" / "state" / "data.error.json").read_text(encoding="utf-8"))
-    assert error["refusal"] is True
+    assert error["refusal"] is True and "not_run" not in error
+    assert error["message"].startswith("cells.txt: BYOD must be a genes-as-columns .csv")
+    assert "run this cell again" in error["message"] and "marked invalid" in error["message"]
     code, out, err = _main(tmp_path, "tokens", {})
-    assert code == STAGES.REFUSED_EXIT and out.startswith("Skipped: 'tokens' did not run") and "Traceback" not in out + err
+    assert code == STAGES.REFUSED_EXIT and "Traceback" not in out + err
+    error = json.loads((tmp_path / "run" / "state" / "tokens.error.json").read_text(encoding="utf-8"))
+    assert error["not_run"] is True and error["message"].startswith("'tokens' did not run")
     code, _, _ = _main(tmp_path, "data", {"use_byod": True, "byod_path": str(tmp_path / "absent.csv")})
     assert code == STAGES.REFUSED_EXIT
     code, _, _ = _main(tmp_path, "data", {})
@@ -172,9 +175,11 @@ def test_t80_6_unexpected_errors_keep_their_traceback(tmp_path, monkeypatch) -> 
     assert code == 1 and "Traceback" in err and "KeyError: 'boom'" in err
 
 
-def test_t80_6_kernel_does_not_raise_on_a_refusal() -> None:
+def test_t80_6_kernel_raises_a_refusal_as_one_line() -> None:
+    # DAT20 (2026-10-26): Run all stops at the refused cell; tested end to end in tests/test_dat20_refusal.py.
     carrier = next(c for c in _cells() if "def run_stage(stage, **options):" in c)
     assert "if error.get('refusal') and process.returncode == 3:" in carrier
+    assert "raise StageRefusal(error['message'])" in carrier and "raise StageNotRun(" in carrier
     assert STAGES.REFUSED_EXIT == 3
 
 
@@ -216,7 +221,8 @@ def test_r2_upload_failure_is_refused_and_invalidates_the_run(tmp_path) -> None:
     assert code == 0
     code, out, err = _main(tmp_path, "data", {"use_byod": True, "byod_path": "", "byod_refusal": "The upload was cancelled or empty: no file was received."})
     assert code == STAGES.REFUSED_EXIT and "Traceback" not in out + err
-    assert out.startswith("BYOD input refused: The upload was cancelled or empty")
+    error = json.loads((tmp_path / "run" / "state" / "data.error.json").read_text(encoding="utf-8"))
+    assert "Refused" not in out and error["message"].startswith("The upload was cancelled or empty")
     assert (tmp_path / "run" / "state" / STAGES.INVALIDATED).is_file()
     assert (tmp_path / "outputs" / f"{STAGES.STEM}_dataset.csv").is_file()
 
