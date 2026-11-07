@@ -160,6 +160,49 @@ REL13: hosted re-run after the requote. The 2026-10-17 run of the requoted blob 
 Colab account 2) printed every T4 figure in the two tables above unchanged, including the per-cell, lineage and
 shuffled-context rows; see Recorded executions.
 
+### Hosted Colab T4 runs of blob `e4a4550a` (2026-11-03)
+
+These runs executed `main` at `85c90a2dbf41e12f8a3f1b8f0353b971a83aa919`, notebook `tutorials/scgpt_single_cell_colab.ipynb` blob `e4a4550a224e8b305795467bfc3782d9e2c10d7d`, fetched at the 40-character SHA and Git-blob verified, with the Colab CLI (`colab exec -f`) on a fresh Colab Tesla T4 session: sequential CLI execution, not a browser `Run all` (the Colab CLI version is not recorded in `exec.log` or `run_summary.json`). Each `run_summary.json` records `verdict` `PASS`, `exec_exit_code` 0, `input_unchanged` true and `stop_verified` true (the VM was released), and the SHA-256 of each executed notebook equals the summary's `executed_sha256`.
+
+**One pass, no restart, 0 errors** (default path, 2026-11-03 07:40:35 UTC start). Default settings, no overrides; session `suite-scgpt-85c90a2-a079`; wall 128.7 s (`wall_s`); `code_cells` 14, all logged in order by `exec.log`, `executed_cells` 14; 0 errors. Retained evidence: [`execution-evidence/2026-11-03-85c90a2/`](execution-evidence/2026-11-03-85c90a2/).
+
+Printed by the default run (verbatim lines from the executed outputs):
+
+```text
+{'verified_files': 5, 'revision': 'acf749f35bf5c0b00633838f02588272ed0d9911', 'weights': 'model.safetensors', 'vocabulary_sha256': 'ee2b2c90158eedb9...'}
+{'baseline': 'library-size threshold', 'rule': "predict 't-like' when total counts < 20003", 'train_accuracy': 0.6111, 'accuracy': 0.625, 'macro_f1': 0.619, 'auroc': 0.7188}
+{'baseline': 'library-size threshold', 'rule': "predict 't-like' when total counts < 20003", 'train_accuracy': 0.6111, 'accuracy': 0.625, 'macro_f1': 0.619, 'auroc': 0.7188}
+{'baseline': 'library-size threshold', 'rule': "predict 't-like' when total counts < 20003", 'train_accuracy': 0.6111, 'accuracy': 0.625, 'macro_f1': 0.619, 'auroc': 0.7188}
+{'split': 'test', 'n': 16, 'accuracy': 1.0, 'macro_f1': 1.0, 'auroc': 1.0}
+{'delta_vs_nearest_centroid': {'accuracy': 0.0, 'macro_f1': 0.0}, 'delta_vs_majority': {'accuracy': 0.5, 'macro_f1': 0.6667}, 'same_as_adapting_process': True, 'test_labels_equal': True, 'test_max_score_difference': 0.0}
+{'reload_parity': 'PASS', 'process': 'fresh (separate from the adapting stage)', 'labels_equal': True, 'max_abs_score_diff': 0.0, 'tolerance': 1e-05}
+```
+
+**Refused as designed** (DAT20 refusal record, 2026-11-03 07:43:59 UTC start, blob `e4a4550a`). Overrides, set by `--set` on a copy of the blob: `USE_BYOD` `False` → `True` and `BYOD_PATH` `''` → `'/etc/hostname'`. The suite cut the run copy right after the refusing cell `scgpt_single_cell-15`, dropping 28 cells (9 of them code cells), which reproduces `Run all` stopping at the first error; the cut copy is `run_copy.ipynb`, SHA-256 `9faaf6ba69ca1685bffae759669ad66172879856d063eb94c7e4880291046b42` (Git blob `563e537c`), equal to the summary's `run_copy_sha256`. Its 5 code cells were logged in order by `exec.log`; the earlier code cells completed without an error output; the refusing cell's only error output has `ename` `StageRefusal` and no Python stack trace (its traceback is the single refusal line), and its output holds exactly one `Refused:` line:
+
+```text
+Refused: hostname: BYOD must be a genes-as-columns .csv, a .json array or a .jsonl file of {id, counts, label} records (export an AnnData .h5ad to CSV first). Nothing was run on it. To recover: fix the named file (or set USE_BYOD = False) and run this cell again, then the sections after it.
+```
+
+This run says nothing about the 28 cut cells, which did not run in it. Session `suite-scgpt-85c90a2-a079`, wall 87 s. Retained evidence: [`execution-evidence/2026-11-03-85c90a2-refusal/`](execution-evidence/2026-11-03-85c90a2-refusal/).
+
+**Local-path redaction.** Local paths were replaced byte-wise by `<local-run-dir>` (and the Colab CLI install path by `<colab-cli-tool-dir>/`, where present) before the first commit; each executed notebook and run copy was checked against its `run_summary.json` before any edit.
+
+| File (under `docs/execution-evidence/2026-11-03-85c90a2/`) | Captured SHA-256 | Committed SHA-256 |
+|---|---|---|
+| `scgpt_single_cell_colab_85c90a2_colab-cli-t4_default.ipynb` | `751be2a3e45e23bd808b119b84f869f8d5a616c248252bd0d836f354647a8db1` | `751be2a3e45e23bd808b119b84f869f8d5a616c248252bd0d836f354647a8db1` (unchanged, no local path) |
+| `exec.log` | `13d52165d94e9bfbaf1c06183688d0abaf20e23692e8d9ff865317364ce0f797` | `caa387b4989a6880a8e0758440d8082ec230bef6eadf7c33f9e6f83f41dcb402` (2 local-path replacements) |
+| `run_summary.json` | `76dadc296571556361d99bfdebc83efb6ba820ccc10394f98d232e289fbb7d05` | `76dadc296571556361d99bfdebc83efb6ba820ccc10394f98d232e289fbb7d05` (unchanged, no local path) |
+
+| File (under `docs/execution-evidence/2026-11-03-85c90a2-refusal/`) | Captured SHA-256 | Committed SHA-256 |
+|---|---|---|
+| `scgpt_single_cell_colab_85c90a2_colab-cli-t4_refusal.ipynb` | `ea8f5ef5f4289b41901b0ad9c712399348b165bc9d1302fcc9b6e76069219c65` | `ea8f5ef5f4289b41901b0ad9c712399348b165bc9d1302fcc9b6e76069219c65` (unchanged, no local path) |
+| `exec.log` | `d0b54ac9b503582576e4ab8df7e471f5228f7f866c75588d17c13d1a859aec89` | `20541e5160dfd081685f03d64a6f0195d90bdcb5327c6f8414458ba3eec17d12` (2 local-path replacements) |
+| `run_summary.json` | `2d8a3d03c3a3d5dd0ab1b1eea92126ae6dc37184d98e839501a4097445255b7c` | `2d8a3d03c3a3d5dd0ab1b1eea92126ae6dc37184d98e839501a4097445255b7c` (unchanged, no local path) |
+| `run_copy.ipynb` | `9faaf6ba69ca1685bffae759669ad66172879856d063eb94c7e4880291046b42` | `9faaf6ba69ca1685bffae759669ad66172879856d063eb94c7e4880291046b42` (unchanged, no local path) |
+
+Not exercised by these runs: an accepted BYOD input (REL12), a browser `Run all` of the interactive journeys (REL2), and every other open gate named in this file; these runs close none of them.
+
 ### Hosted Colab T4 runs of blob `13c5c586` (2026-10-29)
 
 These runs executed the PR head `fca89d51cc30ffb1a322545d28982bbf334391b4`, notebook `tutorials/scgpt_single_cell_colab.ipynb` blob `13c5c586aa000aa88514dc0aed9f3b559409ac73`, fetched at the 40-character SHA and Git-blob verified, with the Colab CLI (`colab exec -f`) on a fresh Colab Tesla T4 session (not a browser `Run all`). Each `run_summary.json` records `verdict` `PASS`, `exec_exit_code` 0, `input_unchanged` true and `stop_verified` true (the VM was released), and the SHA-256 of each executed notebook equals the summary's `executed_sha256`.
@@ -205,9 +248,11 @@ Not exercised by these runs: an accepted BYOD input (REL12), a browser `Run all`
 
 ## Current status
 
-**Candidate — one-pass hosted run of the current blob recorded.** Blob `be0b6b87` (commit `711a9e6`, the notebook with the Section 7 probe prose requoted) completed one pass with 0 errors on a fresh Colab Tesla T4 on 2026-10-17 (Colab account 2; Colab CLI 0.7.4 sequential execution, 14/14 code cells, 138.9 s, `cuda:0`). REL13: hosted re-run after the requote, this blob; every probe, baseline, test and reload figure equals the earlier 2026-10-17 run of blob `90b41684` (commit `5d95ece`): test accuracy / macro-F1 / AUROC 1.0 on 16 cells, tied with the zero-training centroid rule (`saturated`), 6/6 new cells, reload parity exact; masked-expression probe mean Pearson, default seed: MLM 0.0045, generative 0.0393, MVC head 0.0926; see Recorded executions. REL13: the paragraph that follows describes the earlier blob `07755aa2ddf8` and older, not re-run on the current blob. The repository stays **Candidate** until the maintainer explicitly approves promotion.
+**Candidate — one-pass hosted run of the current blob recorded.** The current blob `e4a4550a` (`main` at `85c90a2`, after the 2026-11 lock upgrades) shows a refused BYOD input as exactly one `Refused: <file>: <reason>` line, with no traceback, and stops Run all at that cell. Its default path (2026-11-03; 14 code cells, exit 0, 0 errors) and its scripted DAT20 refusal (2026-11-03; `USE_BYOD=True;BYOD_PATH=/etc/hostname`: exactly one `Refused:` line at cell `scgpt_single_cell-15`, no traceback, earlier cells clean, VM released) both passed on a hosted Colab Tesla T4 (Colab CLI `colab exec -f`, not a browser `Run all`), and the hosted runs of earlier blobs, including `13c5c586`, are history for it (REL14). REL12 (a hosted BYOD run with an accepted input) and REL2 (a browser `Run all` of the interactive journeys) stay open for this blob. The repository stays **Candidate** until the maintainer explicitly approves promotion.
 
-The current blob `13c5c586` (code commit `d788479`) shows a refused BYOD input as exactly one `Refused: <file>: <reason>` line, with no traceback, and stops Run all at that cell (previously the stage printed the refusal and Run all carried on); genuine failures keep their traceback (NOTEBOOK_SPEC DAT19/DAT20). Its default path (2026-10-29; 14 code cells, exit 0, 0 errors) and its scripted DAT20 refusal (2026-10-29; `USE_BYOD=True;BYOD_PATH=/etc/hostname`: exactly one `Refused:` line at cell `scgpt_single_cell-15`, no traceback, earlier cells clean, VM released) both passed on a hosted Colab Tesla T4 (Colab CLI `colab exec -f`, not a browser `Run all`), and the hosted runs of earlier blobs, including `be0b6b87`, are history for it (REL14).
+**History (REL14).** Blob `be0b6b87` (commit `711a9e6`, the notebook with the Section 7 probe prose requoted) completed one pass with 0 errors on a fresh Colab Tesla T4 on 2026-10-17 (Colab account 2; Colab CLI 0.7.4 sequential execution, 14/14 code cells, 138.9 s, `cuda:0`). REL13: hosted re-run after the requote, blob `be0b6b87`; every probe, baseline, test and reload figure equals the earlier 2026-10-17 run of blob `90b41684` (commit `5d95ece`): test accuracy / macro-F1 / AUROC 1.0 on 16 cells, tied with the zero-training centroid rule (`saturated`), 6/6 new cells, reload parity exact; masked-expression probe mean Pearson, default seed: MLM 0.0045, generative 0.0393, MVC head 0.0926; see Recorded executions. REL13: the paragraph that follows describes the earlier blob `07755aa2ddf8` and older, not re-run on the current blob. The repository stays **Candidate** until the maintainer explicitly approves promotion.
+
+The blob `13c5c586` (the current blob on 2026-10-29; history since the 2026-11 lock upgrades) (code commit `d788479`) shows a refused BYOD input as exactly one `Refused: <file>: <reason>` line, with no traceback, and stops Run all at that cell (previously the stage printed the refusal and Run all carried on); genuine failures keep their traceback (NOTEBOOK_SPEC DAT19/DAT20). Its default path (2026-10-29; 14 code cells, exit 0, 0 errors) and its scripted DAT20 refusal (2026-10-29; `USE_BYOD=True;BYOD_PATH=/etc/hostname`: exactly one `Refused:` line at cell `scgpt_single_cell-15`, no traceback, earlier cells clean, VM released) both passed on a hosted Colab Tesla T4 (Colab CLI `colab exec -f`, not a browser `Run all`), and the hosted runs of earlier blobs, including `be0b6b87`, are history for it (REL14).
 
 The regenerated notebook (generator /3, isolated environment, no in-kernel install
 and no restart) passes all static checks, including generator parity (`--check` OK). Its blob `07755aa2ddf8` (commit `8d35011`) completed one pass with no restart (`restarted: false`) and 0 errors on a fresh Colab Tesla T4 on 2026-10-10 (Colab CLI 0.7.4 sequential execution, 14/14 code cells, 143.7 s, `cuda:0`; test accuracy / macro-F1 / AUROC 1.0 on 16 cells, tied with the zero-training centroid rule (`saturated`), 6/6 new cells, reload parity exact); see Recorded executions. The 2026-09-18 Kaggle Tesla T4 run of the previous blob `0f66318` / `31e26691` completed all
